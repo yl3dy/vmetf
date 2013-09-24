@@ -13,23 +13,20 @@ F1 = 0
 F2 = 1
 # size
 L = 100
-H = 10
+H = 1
 # time
-T = 100
-TAU = 10
+T = 10
+TAU = 0.1
 
 GRID_X_SIZE = floor(L / H) + 1
 GRID_T_SIZE = floor(T / TAU) + 1
 X_VALUES = linspace(0, L, GRID_X_SIZE)
 T_VALUES = linspace(0, T, GRID_T_SIZE)
 
-def plot_result(t, data1, data2=None):
+def plot_result(t, data1, data2):
     """Output results neatly."""
-    plt.axis([0., L, F1*1.1, F2*1.1])
-    if data2:
-        plt.plot(X_VALUES, data1, X_VALUES, data2)
-    else:
-        plt.plot(X_VALUES, data1)
+    plt.axis([0., L, -0.1, F2*1.1])
+    plt.plot(X_VALUES, data1, X_VALUES, data2)
     plt.savefig('task1-out/{}.png'.format(t))
     plt.clf()
 
@@ -41,9 +38,21 @@ def exact_solution(t):
     return f_grid
 
 def simple_1st_order():
-    for t in T_VALUES:
-        f_exact = exact_solution(t)
-        plot_result(t, f_exact)
+    """Simple 1st order method."""
+    f_linear, f_linear_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
+    f_linear[0] = F2
+    f_linear_old = exact_solution(0.)
+    for n in range(GRID_T_SIZE):
+        f_exact = exact_solution(T_VALUES[n])
+        if n == 0:
+            plot_result(n, f_exact, f_exact)
+            continue
+        for i in range(1, GRID_X_SIZE):
+            f_linear[i] = f_linear_old[i] - (A*TAU / H) * (f_linear_old[i] -
+                          f_linear_old[i-1])
+        f_linear_old = f_linear
+        plot_result(n, f_exact, f_linear)
+        print('{}/{} done'.format(n, GRID_T_SIZE))
 
 def clean_output():
     system('rm task1-out/*')
