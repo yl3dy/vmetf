@@ -3,7 +3,8 @@
 import sys
 from numpy import empty, linspace, float64
 from math import floor
-from os import system, remove
+import matplotlib.pyplot as plt
+from os import system
 
 # Constants:
 A = 1
@@ -12,36 +13,37 @@ F1 = 0
 F2 = 1
 # size
 L = 100
-H = 0.1
+H = 10
 # time
 T = 100
-TAU = 10.
+TAU = 10
 
-GRID_X_SIZE = floor(L / H)
-GNUPLOT_CMD = "gnuplot -e data1=\\'{dat}\\' \
-                       -e pngfile=\\'task1-out/{output}.png\\' \
-                       -e xmax=\\'" + str(L) + "\\' \
-                       task1.gpt"
+GRID_X_SIZE = floor(L / H) + 1
+GRID_T_SIZE = floor(T / TAU) + 1
+X_VALUES = linspace(0, L, GRID_X_SIZE)
+T_VALUES = linspace(0, T, GRID_T_SIZE)
 
 def plot_result(t, data1, data2=None):
     """Output results neatly."""
-    tmp_paths = 'tmp1.dat'
-    data1.tofile(tmp_paths)
-    system(GNUPLOT_CMD.format(dat=tmp_paths, output=int(t*TAU)))
-    remove(tmp_paths)
+    plt.axis([0., L, F1*1.1, F2*1.1])
+    if data2:
+        plt.plot(X_VALUES, data1, X_VALUES, data2)
+    else:
+        plt.plot(X_VALUES, data1)
+    plt.savefig('task1-out/{}.png'.format(t))
+    plt.clf()
 
-def analytical(t):
+def exact_solution(t):
     """Analytical view at some t."""
-    f_grid = empty([GRID_X_SIZE, 2], dtype=float64)
+    f_grid = empty([GRID_X_SIZE])
     x_n = int((X0 + A*t) / H)
-    f_grid[:, 0] = linspace(0, L, GRID_X_SIZE)
-    f_grid[:x_n, 1], f_grid[x_n:, 1] = F2, F1
+    f_grid[:x_n], f_grid[x_n:] = F2, F1
     return f_grid
 
 def simple_1st_order():
-    for t in linspace(0, T, floor(T / TAU) + 1):
-        f1 = analytical(t)
-        plot_result(t, f1)
+    for t in T_VALUES:
+        f_exact = exact_solution(t)
+        plot_result(t, f_exact)
 
 def clean_output():
     system('rm task1-out/*')
