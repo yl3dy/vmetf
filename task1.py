@@ -14,7 +14,7 @@ F1 = 0
 F2 = 1
 # size
 L = 1
-H = 0.001
+H = 0.002
 # time
 T = 1
 TAU = 0.001
@@ -61,8 +61,7 @@ def simple_1st_order():
     f_linear, f_linear_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
     f_nonlin, f_nonlin_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
     f_linear[0] = f_nonlin[0] = F2
-    f_linear_old = exact_solution(0.)
-    f_nonlin_old = exact_solution(0.)
+    f_linear_old, f_nonlin_old = exact_solution(0.), exact_solution(0.)
     for n in range(GRID_T_SIZE):
         f_exact = exact_solution(T_VALUES[n])
         if n == 0:
@@ -71,7 +70,8 @@ def simple_1st_order():
         for i in range(1, GRID_X_SIZE):
             f_linear[i] = f_linear_old[i] - (A*TAU / H) * (f_linear_old[i] -
                           f_linear_old[i-1])
-            f_nonlin[i] = f_nonlin_old[i] - (TAU / H) * (f_nonlin_old[i]**2 - f_nonlin_old[i-1]**2)
+            f_nonlin[i] = f_nonlin_old[i] - 0.5 * (TAU / H) * (f_nonlin_old[i]**2 -
+                                                               f_nonlin_old[i-1]**2)
         f_linear, f_linear_old = f_linear_old, f_linear
         f_nonlin, f_nonlin_old = f_nonlin_old, f_nonlin
         # do not plot too often
@@ -100,12 +100,11 @@ def lax_wendroff():
             f_linear[i] = f_linear_old[i] - (A*TAU/H) * (f_plus_lin -
                                                          f_minus_lin)
             f_plus_nonlin = 0.5 * (f_nonlin_old[i] + f_nonlin_old[i+1]) - \
-                            (TAU)/(2*H) * (f_nonlin_old[i+1]**2 -
+                            (TAU)/(H) * (f_nonlin_old[i+1]**2 -
                                            f_nonlin_old[i]**2)
-            f_nonlin[i] = f_nonlin_old[i] - (TAU/H) * (f_plus_nonlin**2 -
-                                                              f_minus_nonlin**2)
-            f_plus_lin, f_minus_lin = f_minus_lin, f_plus_lin
-            f_plus_nonlin, f_minus_nonlin = f_minus_nonlin, f_plus_nonlin
+            f_nonlin[i] = f_nonlin_old[i] - 0.5*(TAU/H) * (f_plus_nonlin**2 -
+                                                           f_minus_nonlin**2)
+            f_minus_lin, f_minus_nonlin = f_plus_lin, f_plus_nonlin
         f_linear[-1] = f_linear[-2]
         f_linear, f_linear_old = f_linear_old, f_linear
         f_nonlin[-1] = f_nonlin[-2]
