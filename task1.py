@@ -14,12 +14,12 @@ F1 = 0
 F2 = 1
 # size
 L = 1
-H = 0.01
+H = 0.001
 # time
 T = 1
-TAU = 0.01
+TAU = 0.001
 
-PLOT_NUM = 100    # number of iters to plot
+PLOT_NUM = 500    # number of iters to plot
 
 GRID_X_SIZE = floor(L / H) + 1
 GRID_T_SIZE = floor(T / TAU) + 1
@@ -27,13 +27,14 @@ X_VALUES = linspace(0, L, GRID_X_SIZE)
 T_VALUES = linspace(0, T, GRID_T_SIZE)
 
 def plot_result(t, data1, data2, data3):
-    """Output results neatly."""
+    """Output results in image files."""
     plt.axis([0., L, -0.1, F2*1.1])
     plt.plot(X_VALUES, data1, X_VALUES, data2, X_VALUES, data3)
     plt.savefig('task1-out/{}.png'.format(t))
     plt.clf()
 
 class AnimatedPlot:
+    """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
     def __init__(self):
@@ -48,7 +49,7 @@ class AnimatedPlot:
         plt.show()
 
 def exact_solution(t):
-    """Analytical view at some t."""
+    """Analytical solution at some t."""
     f_grid = empty([GRID_X_SIZE])
     x_n = int((X0 + A*t) / H)
     f_grid[:x_n], f_grid[x_n:] = F2, F1
@@ -79,6 +80,7 @@ def simple_1st_order():
     anim.finalize()
 
 def lax_wendroff():
+    """Lax-Wendroff method."""
     anim = AnimatedPlot()
     f_linear, f_linear_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
     f_nonlin, f_nonlin_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
@@ -114,7 +116,8 @@ def lax_wendroff():
     anim.finalize()
 
 def clean_output():
-    system('rm task1-out/*')
+    """Clean image output."""
+    system('rm task1-out/* 2> /dev/null')
 
 def main():
     """Entry point."""
@@ -130,12 +133,6 @@ def main():
     elif arg == '2':
         print(prompt(' Lax-Wendroff'))
         lax_wendroff()
-    elif arg == '3':
-        print(prompt(''))
-    elif arg == '4':
-        print(prompt(''))
-    elif arg == '5':
-        print(prompt(''))
 
 if __name__ == '__main__':
     main()
