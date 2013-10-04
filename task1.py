@@ -55,28 +55,35 @@ def exact_solution(t):
     f_grid[:x_n], f_grid[x_n:] = F2, F1
     return f_grid
 
-def simple_1st_order():
-    """Simple 1st order method."""
+def linear_methods():
+    """Solution of linear equation using simple and Lax-Wendroff methods."""
     anim = AnimatedPlot()
-    f_linear, f_linear_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
-    f_nonlin, f_nonlin_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
-    f_linear[0] = f_nonlin[0] = F2
-    f_linear_old, f_nonlin_old = exact_solution(0.), exact_solution(0.)
+    f_simple, f_simple_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
+    f_lw, f_lw_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
+    f_simple[0], f_lw[0] = F2, F2
+    f_simple_old, f_lw_old = exact_solution(0.), exact_solution(0.)
     for n in range(GRID_T_SIZE):
         f_exact = exact_solution(T_VALUES[n])
         if n == 0:
             anim.add_frame(n, f_exact, f_exact, f_exact)
             continue
+        f_plus, f_minus = F2, F2
         for i in range(1, GRID_X_SIZE):
-            f_linear[i] = f_linear_old[i] - (A*TAU / H) * (f_linear_old[i] -
-                          f_linear_old[i-1])
-            f_nonlin[i] = f_nonlin_old[i] - 0.5 * (TAU / H) * (f_nonlin_old[i]**2 -
-                                                               f_nonlin_old[i-1]**2)
-        f_linear, f_linear_old = f_linear_old, f_linear
-        f_nonlin, f_nonlin_old = f_nonlin_old, f_nonlin
+            # Simple 1st order
+            f_simple[i] = f_simple_old[i] - (A*TAU / H) * (f_simple_old[i] -
+                          f_simple_old[i-1])
+            # Lax-Wendroff
+            if i < (GRID_X_SIZE-1):
+                f_plus = 0.5 * (f_lw_old[i] + f_lw_old[i+1]) - \
+                        (A*TAU)/(2*H) * (f_lw_old[i+1] - f_lw_old[i])
+                f_lw[i] = f_lw_old[i] - (A*TAU/H) * (f_plus - f_minus)
+                f_plus, f_minus = f_minus, f_plus
+        f_simple, f_simple_old = f_simple_old, f_simple
+        f_lw[-1] = f_lw[-2]
+        f_lw, f_lw_old = f_lw_old, f_lw
         # do not plot too often
         if n % int(floor(GRID_T_SIZE / PLOT_NUM)) == 0:
-            anim.add_frame(n, f_exact, f_linear, f_nonlin)
+            anim.add_frame(n, f_exact, f_simple, f_lw)
     anim.finalize()
 
 def lax_wendroff():
@@ -127,8 +134,8 @@ def main():
     prompt = lambda desc: 'Using method {}: {}'.format(arg, desc)
     clean_output()
     if arg == '1':
-        print(prompt('simple 1st order'))
-        simple_1st_order()
+        print(prompt('linear equation'))
+        linear_methods()
     elif arg == '2':
         print(prompt(' Lax-Wendroff'))
         lax_wendroff()
