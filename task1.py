@@ -39,10 +39,14 @@ class AnimatedPlot:
     fig = plt.figure()
     def __init__(self):
         plt.axis([0., L, -0.1, F2*1.1])
-    def add_frame(self, t, data1, data2, data3):
-        self.sequence.append(plt.plot(X_VALUES, data1, 'r',
-                                      X_VALUES, data2, 'b',
-                                      X_VALUES, data3, 'g'))
+    def add_frame(self, t, data1, data2, data3=None):
+        if not data3 == None:
+            self.sequence.append(plt.plot(X_VALUES, data1, 'r',
+                                          X_VALUES, data2, 'b',
+                                          X_VALUES, data3, 'g'))
+        else:
+            self.sequence.append(plt.plot(X_VALUES, data1, 'r',
+                                          X_VALUES, data2, 'b'))
     def finalize(self):
         animated_seq = ArtistAnimation(self.fig, self.sequence,
                                        interval=200, blit=True)
@@ -86,39 +90,35 @@ def linear_methods():
             anim.add_frame(n, f_exact, f_simple, f_lw)
     anim.finalize()
 
-def lax_wendroff():
-    """Lax-Wendroff method."""
+def nonlinear_methods():
+    """Solution of nonlinear equation (same methods as above)."""
     anim = AnimatedPlot()
-    f_linear, f_linear_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
-    f_nonlin, f_nonlin_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
-    f_linear[0], f_nonlin[0] = F2, F2
-    f_linear_old, f_nonlin_old = exact_solution(0.), exact_solution(0.)
+    f_simple, f_simple_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
+    f_lw, f_lw_old = empty([GRID_X_SIZE]), empty([GRID_X_SIZE])
+    f_simple[0], f_lw[0] = F2, F2
+    f_simple_old, f_lw_old = exact_solution(0.), exact_solution(0.)
     for n in range(GRID_T_SIZE):
         f_exact = exact_solution(T_VALUES[n])
         if n == 0:
             anim.add_frame(n, f_exact, f_exact, f_exact)
             continue
-        f_plus_lin, f_minus_lin = F2, F2
-        f_plus_nonlin, f_minus_nonlin = F2, F2
-        for i in range(1, GRID_X_SIZE-1):
-            f_plus_lin = 0.5 * (f_linear_old[i] + f_linear_old[i+1]) - \
-                         (A*TAU)/(2*H) * (f_linear_old[i+1] -
-                                          f_linear_old[i])
-            f_linear[i] = f_linear_old[i] - (A*TAU/H) * (f_plus_lin -
-                                                         f_minus_lin)
-            f_plus_nonlin = 0.5 * (f_nonlin_old[i] + f_nonlin_old[i+1]) - \
-                            (TAU)/(H) * (f_nonlin_old[i+1]**2 -
-                                           f_nonlin_old[i]**2)
-            f_nonlin[i] = f_nonlin_old[i] - 0.5*(TAU/H) * (f_plus_nonlin**2 -
-                                                           f_minus_nonlin**2)
-            f_minus_lin, f_minus_nonlin = f_plus_lin, f_plus_nonlin
-        f_linear[-1] = f_linear[-2]
-        f_linear, f_linear_old = f_linear_old, f_linear
-        f_nonlin[-1] = f_nonlin[-2]
-        f_nonlin, f_nonlin_old = f_nonlin_old, f_nonlin
+        f_plus, f_minus = F2, F2
+        for i in range(1, GRID_X_SIZE):
+            # Simple 1st order
+            f_simple[i] = f_simple_old[i] - 0.5 * (TAU / H) * (f_simple_old[i]**2 -
+                                                               f_simple_old[i-1]**2)
+            # Lax-Wendroff
+            if i < (GRID_X_SIZE-1):
+                f_plus = 0.5 * (f_lw_old[i] + f_lw_old[i+1]) - \
+                         (TAU)/(4*H) * (f_lw_old[i+1]**2 - f_lw_old[i]**2)
+                f_lw[i] = f_lw_old[i] - 0.5*(TAU/H) * (f_plus**2 - f_minus**2)
+                f_plus, f_minus = f_minus, f_plus
+        f_simple, f_simple_old = f_simple_old, f_simple
+        f_lw[-1] = f_lw[-2]
+        f_lw, f_lw_old = f_lw_old, f_lw
         # do not plot too often
         if n % int(floor(GRID_T_SIZE / PLOT_NUM)) == 0:
-            anim.add_frame(n, f_exact, f_linear, f_nonlin)
+            anim.add_frame(n, f_simple, f_lw)
     anim.finalize()
 
 def clean_output():
@@ -137,8 +137,8 @@ def main():
         print(prompt('linear equation'))
         linear_methods()
     elif arg == '2':
-        print(prompt(' Lax-Wendroff'))
-        lax_wendroff()
+        print(prompt('Burgers equation'))
+        nonlinear_methods()
 
 if __name__ == '__main__':
     main()
