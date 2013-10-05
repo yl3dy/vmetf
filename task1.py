@@ -12,6 +12,7 @@ A = 0.5
 X0 = 0.1
 F1 = 0
 F2 = 1
+Q = 0.1
 # size
 L = 1
 H = 0.002
@@ -38,7 +39,7 @@ class AnimatedPlot:
     sequence = []
     fig = plt.figure()
     def __init__(self):
-        plt.axis([0., L, -0.1, F2*1.1])
+        plt.axis([0., L*0.5, -0.1, 1.1])
     def add_frame(self, t, data1, data2, data3=None):
         if not data3 == None:
             self.sequence.append(plt.plot(X_VALUES, data1, 'r',
@@ -84,6 +85,21 @@ def linear_methods():
                 f_plus, f_minus = f_minus, f_plus
         f_simple, f_simple_old = f_simple_old, f_simple
         f_lw[-1] = f_lw[-2]
+        # Smoothing
+        for i in range(2, GRID_X_SIZE-2):
+            D_p = f_lw[i+1] - f_lw[i]
+            D_pp = f_lw[i+2] - f_lw[i+1]
+            D_m = f_lw[i] - f_lw[i-1]
+            D_mm = f_lw[i-1] - f_lw[i-2]
+            if D_p*D_m <= 0 or D_p*D_pp <= 0:
+                Q_plus = D_p
+            else:
+                Q_plus = 0
+            if D_p*D_m <= 0 or D_m*D_mm <=0:
+                Q_minus = D_m
+            else:
+                Q_minus = 0
+            f_lw[i] += Q * (Q_plus - Q_minus)
         f_lw, f_lw_old = f_lw_old, f_lw
         # do not plot too often
         if n % int(floor(GRID_T_SIZE / PLOT_NUM)) == 0:
