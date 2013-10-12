@@ -20,7 +20,7 @@ H = 0.002
 T = 1
 TAU = 0.001
 
-PLOT_NUM = 500    # number of iters to plot
+PLOT_NUM = 250    # number of iters to plot
 
 GRID_X_SIZE = floor(L / H) + 1
 GRID_T_SIZE = floor(T / TAU) + 1
@@ -50,7 +50,7 @@ class AnimatedPlot:
                                           X_VALUES, data2, 'b'))
     def finalize(self):
         animated_seq = ArtistAnimation(self.fig, self.sequence,
-                                       interval=200, blit=True)
+                                       interval=100, blit=True)
         plt.show()
 
 def exact_solution(t):
@@ -59,6 +59,26 @@ def exact_solution(t):
     x_n = int((X0 + A*t) / H)
     f_grid[:x_n], f_grid[x_n:] = F2, F1
     return f_grid
+
+def smoothing(f_next):
+    f_tmp = f_next.copy()
+    for i in range(2, GRID_X_SIZE-2):
+        D_m = f_next[i] - f_next[i-1]
+        D_mm = f_next[i-1] - f_next[i-2]
+        D_p = f_next[i+1] - f_next[i]
+        D_pp = f_next[i+2] - f_next[i+1]
+
+        if D_p*D_m <= 0 or D_p*D_pp <= 0:
+            Q_plus = D_p
+        else:
+            Q_plus = 0
+        if D_p*D_m <= 0 or D_m*D_mm <= 0:
+            Q_minus = D_m
+        else:
+            Q_minus = 0
+
+        f_tmp[i] = f_next[i] + Q * (Q_plus - Q_minus)
+    return f_tmp
 
 def linear_methods():
     """Solution of linear equation using simple and Lax-Wendroff methods."""
@@ -85,21 +105,7 @@ def linear_methods():
                 f_plus, f_minus = f_minus, f_plus
         f_simple, f_simple_old = f_simple_old, f_simple
         f_lw[-1] = f_lw[-2]
-        # Smoothing
-        for i in range(2, GRID_X_SIZE-2):
-            D_p = f_lw[i+1] - f_lw[i]
-            D_pp = f_lw[i+2] - f_lw[i+1]
-            D_m = f_lw[i] - f_lw[i-1]
-            D_mm = f_lw[i-1] - f_lw[i-2]
-            if D_p*D_m <= 0 or D_p*D_pp <= 0:
-                Q_plus = D_p
-            else:
-                Q_plus = 0
-            if D_p*D_m <= 0 or D_m*D_mm <=0:
-                Q_minus = D_m
-            else:
-                Q_minus = 0
-            f_lw[i] += Q * (Q_plus - Q_minus)
+        f_lw = smoothing(f_lw)
         f_lw, f_lw_old = f_lw_old, f_lw
         # do not plot too often
         if n % int(floor(GRID_T_SIZE / PLOT_NUM)) == 0:
@@ -131,6 +137,7 @@ def nonlinear_methods():
                 f_plus, f_minus = f_minus, f_plus
         f_simple, f_simple_old = f_simple_old, f_simple
         f_lw[-1] = f_lw[-2]
+        f_lw = smoothing(f_lw)
         f_lw, f_lw_old = f_lw_old, f_lw
         # do not plot too often
         if n % int(floor(GRID_T_SIZE / PLOT_NUM)) == 0:
