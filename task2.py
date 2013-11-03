@@ -11,23 +11,24 @@ from math import sqrt
 
 ### SIZES ###
 # spacial
-H = 0.001
+H = 0.005
 L = 1
 # time
-TAU = 0.001
-T = 0.2
+TAU = 0.002
+T = 0.6
 ### Initial parameters ###
-U0 = 0      # initial ("cold") temperature
-U1 = 1      # heater temperature
-### 3-layer method parameters ###
-KSI = 0.5
+U0 = 0.      # initial ("cold") temperature
+U1 = 1.      # heater temperature
 ### Equation parameters ###
 # Linear
-NU = 0.5
+NU = 1
 # Nonlinear
 K = 1
 SIGMA = 0.5
-C = sqrt(U1**SIGMA * K / SIGMA)
+CS = sqrt(U1**SIGMA * K / SIGMA)
+### 3-layer method parameters ###
+KSI = 0.
+#KSI = 0.5 + H**2 / (12*NU*TAU)
 
 X_SIZE = int(L/H - 1)
 X_VALUES = linspace(0, L, X_SIZE+1)[1:]
@@ -37,21 +38,23 @@ class AnimatedPlot:
     """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
-    def __init__(self):
+    INTERVAL = 50
+    def __init__(self, legend=None):
+        """Initialize plot (optionally with a legend)."""
         plt.axis([0., L, -0.5, 1.5])
-    def add_frame(self, t, data1, data2=None, data3=None):
-        if data2 == None:
-            self.sequence.append(plt.plot(X_VALUES, data1, 'r'))
-        elif data3 == None:
-            self.sequence.append(plt.plot(X_VALUES, data1, 'r',
-                                          X_VALUES, data2, 'b'))
-        else:
-            self.sequence.append(plt.plot(X_VALUES, data1, 'r',
-                                          X_VALUES, data2, 'b',
-                                          X_VALUES, data3, 'g'))
+        if legend: plt.legend(legend)
+    def add_frame(self, *args):
+        """Add a frame to animation."""
+        colors = ['b', 'r', 'g']
+        if len(args) > len(colors):
+            print('Too many arguments to AnimatedPlot.add_frame')
+        plot_args = sum([[X_VALUES, args[i], colors[i]]
+                         for i in range(len(args))], [])
+        self.sequence.append(plt.plot(*plot_args))
     def finalize(self):
-        animated_seq = ArtistAnimation(self.fig, self.sequence,
-                                       interval=100, blit=True)
+        """Show animated plot."""
+        _ = ArtistAnimation(self.fig, self.sequence, interval=self.INTERVAL,
+                            blit=True)
         plt.show()
 
 def check_parabolic_courant():
@@ -71,10 +74,10 @@ def exact_nonlinear(t):
     """Exact solution of nonlinear equation."""
     u = []
     for x in X_VALUES:
-        if x > C*t:
+        if x > CS*t:
             u.append(U0)
         else:
-            u.append((SIGMA*C/K) * (C*t - x)**(1/SIGMA))
+            u.append((SIGMA*CS/K) * (CS*t - x)**(1/SIGMA))
     return u
 
 def solve_3_layer(equation_mode):
@@ -87,17 +90,21 @@ def solve_3_layer(equation_mode):
     elif equation_mode == 'nonlinear':
         exact = exact_nonlinear
         u0 = lambda t: U1 * t**(1/SIGMA)
+        # TODO: nonlinear
     else:
         return False
 
     amplot = AnimatedPlot()
-    u_next, u_prev, u_prev_2 = array(exact(0)), array(exact(0)), array(exact(0))
-    implicit_matrix, implicit_b = lil_matrix((X_SIZE, X_SIZE)), empty((1,X_SIZE))
-    main_diag, lower_diag, upper_diag = empty([X_SIZE]), empty([X_SIZE-1]), empty([X_SIZE-1])
+    u_prev, u_prev_2 = array(exact(0)), array(exact(0))  # initial conditions
+    implicit_matrix, = lil_matrix((X_SIZE, X_SIZE))
+    implicit_b = empty((1, X_SIZE))
+    main_diag = empty([X_SIZE])
+    lower_diag, upper_diag = empty([X_SIZE-1]), empty([X_SIZE-1])
+
     for t in T_VALUES:
         u_exact = exact(t)
         if t == 0:
-            amplot.add_frame(t, u_exact, u_prev)
+            amplot.add_frame(u_exact, u_prev)
             continue
 
         # Fill A matrix for given t
@@ -105,6 +112,7 @@ def solve_3_layer(equation_mode):
             main_diag[:] = (1+KSI)/TAU - A
             upper_diag[:], lower_diag[:] = -B, -C
         else:
+            # TODO: nonlinear
             quit()
         implicit_matrix.setdiag(main_diag)
         implicit_matrix.setdiag(upper_diag, k=1)
@@ -113,16 +121,19 @@ def solve_3_layer(equation_mode):
         implicit_b = (1+2*KSI)/TAU * u_prev - KSI/TAU * u_prev_2
         # Set boundary conditions
         implicit_b[0] += C*u0(t)        # left
-        implicit_matrix[-1, -1] = -B    # right
+        implicit_matrix[-1, -1] -= B    # right #1
+        #implicit_matrix[-1, -1] -= 2*B    # right #2
+        #implicit_matrix[-1, -2] += B      # --"--
 
         # Solve Ax=b and unpack
         u_prev_2, u_prev = u_prev, u_prev_2
         u_prev = spsolve(implicit_matrix.tocsr(), implicit_b)
 
-        amplot.add_frame(t, u_exact, u_prev)
+        amplot.add_frame(u_exact, u_prev)
     amplot.finalize()
 
 def main():
+    """Entry point of programm."""
     equations = {'1': 'linear', '2': 'nonlinear'}
     try:
         solve_3_layer(equations[sys.argv[1]])
