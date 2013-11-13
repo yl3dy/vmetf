@@ -14,8 +14,8 @@ from math import sqrt
 H = 0.01
 L = 1
 # time
-TAU = 0.002
-T = 0.3
+TAU = 0.001
+T = 0.6
 ### Initial parameters ###
 U0 = 0.      # initial ("cold") temperature
 U1 = 1.      # heater temperature
@@ -23,12 +23,12 @@ U1 = 1.      # heater temperature
 # Linear
 NU = 1
 # Nonlinear
-K = 2.0
-SIGMA = 0.7
+K = 1.0
+SIGMA = 0.6
 CS = sqrt(U1**SIGMA * K / SIGMA)
-lambda_nonlin = lambda u: K * u**(SIGMA)
+lambda_nonlin = lambda u: K * u**SIGMA
 ### 3-layer method parameters ###
-KSI = 0.
+KSI = 0.5
 #KSI = 0.5 + H**2 / (12*NU*TAU)
 
 X_SIZE = int(L/H - 1)
@@ -39,10 +39,10 @@ class AnimatedPlot:
     """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
-    INTERVAL = 100
+    INTERVAL = 25
     def __init__(self, legend=None):
         """Initialize plot (optionally with a legend)."""
-        plt.axis([0., L, -0.1, 0.1])
+        plt.axis([0., L, -0.01, 0.3])
         self.legend = legend
     def add_frame(self, *args):
         """Add a frame to animation."""
@@ -77,9 +77,9 @@ def exact_nonlinear(t):
     u = []
     for x in X_VALUES:
         if x > CS*t:
-            u.append(U0)
+            u.append(0)
         else:
-            u.append((SIGMA*CS/K) * (CS*t - x)**(1/SIGMA))
+            u.append(((SIGMA*CS/K) * (CS*t - x))**(1/SIGMA))
     return u
 
 def solve_3_layer(equation_mode):
@@ -91,9 +91,7 @@ def solve_3_layer(equation_mode):
         check_parabolic_courant()
     elif equation_mode == 'nonlinear':
         exact = exact_nonlinear
-        u1 = (SIGMA * CS**2 / K)**(1/SIGMA)
-        u0 = lambda t: u1 * t**(1/SIGMA)
-        # TODO: nonlinear
+        u0 = lambda t: U1 * t**(1/SIGMA)
     else:
         return False
 
@@ -118,16 +116,22 @@ def solve_3_layer(equation_mode):
             upper_diag[:], lower_diag[:] = -B, -C
         else:       # nonlinear
             u_extended[1:-1] = u_prev
-            u_extended[0], u_extended[-1] = u1, u_extended[-2]
+            u_extended[0], u_extended[-1] = U1, u_extended[-2]
             lambdas = lambda_nonlin(u_extended)
 
-            #for i in range(X_SIZE+1):
-                #if lambdas[i+1] > 0:
-                    #lambdas_new[i] = 2*lambdas[i]*lambdas[i+1] / (lambdas[i]+lambdas[i+1])
-                #elif lambdas[i] > 0:
-                    #lambdas_new[i] = 0.5 * lambdas[i]
-                #else:
-                    #lambdas_new[i] = 0
+            for i in range(X_SIZE+1):
+                if lambdas[i+1] > 0:
+                    lambdas_new[i] = 2*lambdas[i]*lambdas[i+1] / (lambdas[i]+lambdas[i+1])
+                    #lambdas_new[i] = 0.5 * (lambdas[i] + lambdas[i+1])
+                    assert(lambdas[i] != 0 and lambdas[i+1] != 0)
+                elif lambdas[i] > 0:
+                    lambdas_new[i] = 0.5 * lambdas[i]
+                    i_fringe = i
+                    assert(lambdas[i+1] == 0)
+                else:
+                    lambdas_new[i] = 0
+            print(lambdas_new[i_fringe-3], lambdas_new[i_fringe-2], lambdas_new[i_fringe-1],
+                    lambdas_new[i_fringe], lambdas_new[i_fringe+1])
 
             #lambdas[1:], lambdas[:-1] = lambda_prev, lambda_next
             #lambdas_new[lambda_next > 0] = 2*lambda_next[lambda_next > 0]*lambda_prev[lambda_next > 0]
@@ -138,8 +142,6 @@ def solve_3_layer(equation_mode):
             #lambdas_new[lambdas_new == 0] = 0.5 * lambdas[lambdas_new == 0]
             #lambdas_new = nan_to_num(lambdas_new)
 
-            lambdas_new = 0.5 * (lambdas[:-1] + lambdas[1:])
-
             main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1]) / H**2
             upper_diag = - lambdas_new[1:-1] / H**2
             lower_diag = - lambdas_new[1:-1] / H**2
@@ -147,10 +149,6 @@ def solve_3_layer(equation_mode):
             C = lambdas_new[0] / H**2
             B = lambdas_new[-1] / H**2
 
-            #if t > 0.1:
-                #print(lambdas_new)
-                ##print(main_diag)
-                #quit()
         implicit_matrix.setdiag(main_diag)
         implicit_matrix.setdiag(upper_diag, k=1)
         implicit_matrix.setdiag(lower_diag, k=-1)
