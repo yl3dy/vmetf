@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from numpy import empty, linspace, array, nan_to_num
+from numpy import empty, linspace, array, copy
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
 from scipy.special import erfc
@@ -14,7 +14,7 @@ from math import sqrt
 H = 0.01
 L = 1
 # time
-TAU = 0.001
+TAU = 0.002
 T = 0.6
 ### Initial parameters ###
 U0 = 0.      # initial ("cold") temperature
@@ -24,12 +24,15 @@ U1 = 1.      # heater temperature
 NU = 1
 # Nonlinear
 K = 1.0
-SIGMA = 0.6
+SIGMA = 0.7
 CS = sqrt(U1**SIGMA * K / SIGMA)
 lambda_nonlin = lambda u: K * u**SIGMA
 ### 3-layer method parameters ###
 KSI = 0.5
 #KSI = 0.5 + H**2 / (12*NU*TAU)
+
+# very small number
+EPS = 1e-20
 
 X_SIZE = int(L/H - 1)
 X_VALUES = linspace(0, L, X_SIZE+1)[1:]
@@ -82,6 +85,26 @@ def exact_nonlinear(t):
             u.append(((SIGMA*CS/K) * (CS*t - x))**(1/SIGMA))
     return u
 
+def TDM_solve(main_diag, upper_diag, lower_diag, b):
+    """Tridiagonal linear system solver."""
+    n = len(main_diag)
+    c, d, solution = empty(n - 1), empty(n), empty(n)
+
+    # forward
+    c[0] = upper_diag[0] / main_diag[0]
+    d[0] = b[0] / main_diag[0]
+    for i in range(1, n):
+        if i < n - 1:
+            c[i] = upper_diag[i] / (main_diag[i] - c[i-1]*lower_diag[i-1])
+        d[i] = (b[i] - d[i-1]*lower_diag[i-1]) / (main_diag[i] - c[i-1]*lower_diag[i-1])
+
+    # backward substitution
+    solution[n-1] = d[n-1]
+    for i in reversed(range(n-1)):
+        solution[i] = d[i] - c[i]*solution[i+1]
+
+    return solution
+
 def solve_3_layer(equation_mode):
     """General solver for (non)linear equation."""
     if equation_mode == 'linear':
@@ -97,7 +120,6 @@ def solve_3_layer(equation_mode):
 
     amplot = AnimatedPlot(('Exact solution', 'Implicit solver'))
     u_prev, u_prev_2 = array(exact(0)), array(exact(0))  # initial conditions
-    implicit_matrix = lil_matrix((X_SIZE, X_SIZE))
     implicit_b = empty((1, X_SIZE))
     main_diag = empty(X_SIZE)
     lower_diag, upper_diag = empty(X_SIZE-1), empty(X_SIZE-1)
@@ -116,31 +138,10 @@ def solve_3_layer(equation_mode):
             upper_diag[:], lower_diag[:] = -B, -C
         else:       # nonlinear
             u_extended[1:-1] = u_prev
-            u_extended[0], u_extended[-1] = U1, u_extended[-2]
+            u_extended[0], u_extended[-1] = u0(t), u_extended[-2]
             lambdas = lambda_nonlin(u_extended)
 
-            for i in range(X_SIZE+1):
-                if lambdas[i+1] > 0:
-                    lambdas_new[i] = 2*lambdas[i]*lambdas[i+1] / (lambdas[i]+lambdas[i+1])
-                    #lambdas_new[i] = 0.5 * (lambdas[i] + lambdas[i+1])
-                    assert(lambdas[i] != 0 and lambdas[i+1] != 0)
-                elif lambdas[i] > 0:
-                    lambdas_new[i] = 0.5 * lambdas[i]
-                    i_fringe = i
-                    assert(lambdas[i+1] == 0)
-                else:
-                    lambdas_new[i] = 0
-            print(lambdas_new[i_fringe-3], lambdas_new[i_fringe-2], lambdas_new[i_fringe-1],
-                    lambdas_new[i_fringe], lambdas_new[i_fringe+1])
-
-            #lambdas[1:], lambdas[:-1] = lambda_prev, lambda_next
-            #lambdas_new[lambda_next > 0] = 2*lambda_next[lambda_next > 0]*lambda_prev[lambda_next > 0]
-            #lambdas_new[lambda_next == 0] = 0.5 * lambda_prev[lambda_next == 0]
-            #lambdas_new[lambda_prev == 0] = 0
-
-            #lambdas_new = 2 * lambdas[:-1] * lambdas[1:] / (lambdas[:-1] + lambdas[1:])
-            #lambdas_new[lambdas_new == 0] = 0.5 * lambdas[lambdas_new == 0]
-            #lambdas_new = nan_to_num(lambdas_new)
+            lambdas_new = (2 * lambdas[:-1] * lambdas[1:] + EPS) / (lambdas[:-1] + lambdas[1:] + EPS)
 
             main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1]) / H**2
             upper_diag = - lambdas_new[1:-1] / H**2
@@ -149,20 +150,15 @@ def solve_3_layer(equation_mode):
             C = lambdas_new[0] / H**2
             B = lambdas_new[-1] / H**2
 
-        implicit_matrix.setdiag(main_diag)
-        implicit_matrix.setdiag(upper_diag, k=1)
-        implicit_matrix.setdiag(lower_diag, k=-1)
         # Fill b matrix
         implicit_b = (1+2*KSI)/TAU * u_prev - KSI/TAU * u_prev_2
         # Set boundary conditions
-        implicit_b[0] += C*u0(t)        # left
-        implicit_matrix[-1, -1] -= B    # right #1
-        #implicit_matrix[-1, -1] -= 2*B    # right #2
-        #implicit_matrix[-1, -2] += B      # --"--
+        implicit_b[0] += C*u0(t)   # left
+        main_diag[-1] -= B         # right
 
         # Solve Ax=b and unpack
         u_prev_2, u_prev = u_prev, u_prev_2
-        u_prev = spsolve(implicit_matrix.tocsr(), implicit_b)
+        u_prev = TDM_solve(main_diag, upper_diag, lower_diag, implicit_b)
 
         amplot.add_frame(u_exact, u_prev)
     amplot.finalize()
