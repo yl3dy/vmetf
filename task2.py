@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import sys
-from numpy import empty, linspace, array, copy
+from numpy import empty, linspace, array, copyto
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
 from scipy.special import erfc
-from scipy.sparse import lil_matrix
-from scipy.sparse.linalg import spsolve
-from math import sqrt
+from math import sqrt, floor
 
 ### SIZES ###
 # spacial
@@ -15,37 +13,35 @@ H = 0.01
 L = 1
 # time
 TAU = 0.002
-T = 0.6
+T = 0.2
 ### Initial parameters ###
-U0 = 0.      # initial ("cold") temperature
-U1 = 1.      # heater temperature
+U0 = 1.
 ### Equation parameters ###
 # Linear
-NU = 1
+NU = 1.
 # Nonlinear
 K = 1.0
-SIGMA = 0.7
-CS = sqrt(U1**SIGMA * K / SIGMA)
+SIGMA = 0.8
+CS = sqrt(U0**SIGMA * K / SIGMA)
 lambda_nonlin = lambda u: K * u**SIGMA
 ### 3-layer method parameters ###
 KSI = 0.5
-#KSI = 0.5 + H**2 / (12*NU*TAU)
 
 # very small number
 EPS = 1e-20
 
-X_SIZE = int(L/H - 1)
-X_VALUES = linspace(0, L, X_SIZE+1)[1:]
-T_VALUES = linspace(0, T, T / TAU)
+X_SIZE = floor(L/H - 1)
+X_VALUES = linspace(0, L, X_SIZE + 2)[1:-1]
+T_VALUES = linspace(0, T, floor(T / TAU + 1))
 
 class AnimatedPlot:
     """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
-    INTERVAL = 25
+    INTERVAL = 100
     def __init__(self, legend=None):
         """Initialize plot (optionally with a legend)."""
-        plt.axis([0., L, -0.01, 0.3])
+        plt.axis([0., 0.5, -0.01, 0.3])
         self.legend = legend
     def add_frame(self, *args):
         """Add a frame to animation."""
@@ -71,16 +67,16 @@ def check_parabolic_courant():
 def exact_linear(t):
     """Exact solution of linear equation."""
     if t > 0:
-        return [U1 * erfc(0.5*x / sqrt(NU*t)) for x in X_VALUES]
+        return [U0 * erfc(0.5*x / sqrt(NU*t)) for x in X_VALUES]
     else:
-        return [U0 for x in X_VALUES]
+        return [0. for x in X_VALUES]
 
 def exact_nonlinear(t):
     """Exact solution of nonlinear equation."""
     u = []
     for x in X_VALUES:
         if x > CS*t:
-            u.append(0)
+            u.append(0.)
         else:
             u.append(((SIGMA*CS/K) * (CS*t - x))**(1/SIGMA))
     return u
@@ -110,20 +106,21 @@ def solve_3_layer(equation_mode):
     if equation_mode == 'linear':
         exact = exact_linear
         A, B, C = -2*NU / H**2, NU / H**2, NU / H**2
-        u0 = lambda t: U1
+        u0 = lambda t: U0
         check_parabolic_courant()
     elif equation_mode == 'nonlinear':
         exact = exact_nonlinear
-        u0 = lambda t: U1 * t**(1/SIGMA)
+        u0 = lambda t: U0 * t**(1/SIGMA)
     else:
         return False
 
-    amplot = AnimatedPlot(('Exact solution', 'Implicit solver'))
+    #amplot = AnimatedPlot(('Exact solution', 'Implicit solver'))
+    amplot = AnimatedPlot()
     u_prev, u_prev_2 = array(exact(0)), array(exact(0))  # initial conditions
-    implicit_b = empty((1, X_SIZE))
+    implicit_b = empty(X_SIZE)
     main_diag = empty(X_SIZE)
     lower_diag, upper_diag = empty(X_SIZE-1), empty(X_SIZE-1)
-    lambdas, lambdas_new = empty(X_SIZE), empty(X_SIZE+1)
+    lambdas, lambdas_new = empty(X_SIZE+2), empty(X_SIZE+1)
     u_extended = empty(X_SIZE+2)
 
     for t in T_VALUES:
@@ -140,24 +137,23 @@ def solve_3_layer(equation_mode):
             u_extended[1:-1] = u_prev
             u_extended[0], u_extended[-1] = u0(t), u_extended[-2]
             lambdas = lambda_nonlin(u_extended)
+            lambdas_new = (2 * lambdas[:-1] * lambdas[1:] + EPS) / (lambdas[:-1] + lambdas[1:] + EPS) + EPS
 
-            lambdas_new = (2 * lambdas[:-1] * lambdas[1:] + EPS) / (lambdas[:-1] + lambdas[1:] + EPS)
-
-            main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1]) / H**2
+            main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1])/H**2
             upper_diag = - lambdas_new[1:-1] / H**2
             lower_diag = - lambdas_new[1:-1] / H**2
             # set B, C for boundary points for compatibility
             C = lambdas_new[0] / H**2
             B = lambdas_new[-1] / H**2
 
-        # Fill b matrix
-        implicit_b = (1+2*KSI)/TAU * u_prev - KSI/TAU * u_prev_2
+        # Fill b vector
+        implicit_b = (1 + 2*KSI)/TAU * u_prev - KSI/TAU * u_prev_2
         # Set boundary conditions
         implicit_b[0] += C*u0(t)   # left
         main_diag[-1] -= B         # right
 
-        # Solve Ax=b and unpack
-        u_prev_2, u_prev = u_prev, u_prev_2
+        # Solve Ax=b and copy
+        copyto(u_prev_2, u_prev)
         u_prev = TDM_solve(main_diag, upper_diag, lower_diag, implicit_b)
 
         amplot.add_frame(u_exact, u_prev)
