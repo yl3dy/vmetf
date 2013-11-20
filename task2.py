@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 
 import sys
-from numpy import empty, linspace, array, copyto
+from numpy import empty, linspace, array, copyto, zeros
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
 from scipy.special import erfc
 from math import sqrt, floor
 
 ### SIZES ###
-# spacial
-H = 0.01
+# spatial
+H = 0.05
 L = 1
 # time
-TAU = 0.002
-T = 0.2
+TAU = 0.001
+T = 0.8
 ### Initial parameters ###
 U0 = 1.
 ### Equation parameters ###
@@ -25,10 +25,11 @@ SIGMA = 0.8
 CS = sqrt(U0**SIGMA * K / SIGMA)
 lambda_nonlin = lambda u: K * u**SIGMA
 ### 3-layer method parameters ###
-KSI = 0.5
+KSI = -0.5
 
 # very small number
 EPS = 1e-20
+SKIP = 10
 
 X_SIZE = floor(L/H - 1)
 X_VALUES = linspace(0, L, X_SIZE + 2)[1:-1]
@@ -38,10 +39,10 @@ class AnimatedPlot:
     """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
-    INTERVAL = 100
+    INTERVAL = 120
     def __init__(self, legend=None):
         """Initialize plot (optionally with a legend)."""
-        plt.axis([0., 0.5, -0.01, 0.3])
+        plt.axis([0., 0.5, -0.01, 0.8])
         self.legend = legend
     def add_frame(self, *args):
         """Add a frame to animation."""
@@ -61,24 +62,22 @@ class AnimatedPlot:
 def check_parabolic_courant():
     """Check if Courant number is in the bounds of stability."""
     parabolic_courant = 0.5*TAU*NU / H**2
-    if parabolic_courant <= 1.0:
+    if parabolic_courant > 1.0:
         print('Warning! Courant number is bad: ' + str(parabolic_courant))
 
 def exact_linear(t):
     """Exact solution of linear equation."""
     if t > 0:
-        return [U0 * erfc(0.5*x / sqrt(NU*t)) for x in X_VALUES]
+        return array([U0 * erfc(0.5*x / sqrt(NU*t)) for x in X_VALUES])
     else:
-        return [0. for x in X_VALUES]
+        return array([0. for x in X_VALUES])
 
 def exact_nonlinear(t):
     """Exact solution of nonlinear equation."""
-    u = []
-    for x in X_VALUES:
-        if x > CS*t:
-            u.append(0.)
-        else:
-            u.append(((SIGMA*CS/K) * (CS*t - x))**(1/SIGMA))
+    u = zeros(X_SIZE)
+    front = floor(CS*t / H)
+    for i in range(front):
+        u[i] = ((SIGMA*CS/K) * (CS*t - (i+1)*H))**(1/SIGMA)
     return u
 
 def TDM_solve(main_diag, upper_diag, lower_diag, b):
@@ -101,6 +100,15 @@ def TDM_solve(main_diag, upper_diag, lower_diag, b):
 
     return solution
 
+def get_nonlinear_params(u_extended, lambdas_new, u_prev, u0):
+    """Calculate \lambda_+, \lambda_- and u_extended."""
+    u_extended[1:-1] = u_prev
+    u_extended[0], u_extended[-1] = u0, u_extended[-2]
+    lambdas = lambda_nonlin(u_extended)
+    #lambdas_new = (2 * lambdas[:-1] * lambdas[1:] + EPS) / (lambdas[:-1] + lambdas[1:] + EPS)
+    lambdas_new = 0.5 * (lambdas[:-1] + lambdas[1:])
+    return lambdas_new, u_extended
+
 def solve_3_layer(equation_mode):
     """General solver for (non)linear equation."""
     if equation_mode == 'linear':
@@ -111,22 +119,26 @@ def solve_3_layer(equation_mode):
     elif equation_mode == 'nonlinear':
         exact = exact_nonlinear
         u0 = lambda t: U0 * t**(1/SIGMA)
+        lambdas_new = empty(X_SIZE+1)
+        lambdas_new_expl = empty(X_SIZE+1)
     else:
         return False
 
-    #amplot = AnimatedPlot(('Exact solution', 'Implicit solver'))
-    amplot = AnimatedPlot()
-    u_prev, u_prev_2 = array(exact(0)), array(exact(0))  # initial conditions
+    amplot = AnimatedPlot(('Exact solution', 'Implicit solver', 'Explicit solver'))
+
+    u_prev, u_prev_2 = exact(0), exact(0)  # initial conditions
+    u_extended = empty(X_SIZE+2)
     implicit_b = empty(X_SIZE)
     main_diag = empty(X_SIZE)
     lower_diag, upper_diag = empty(X_SIZE-1), empty(X_SIZE-1)
-    lambdas, lambdas_new = empty(X_SIZE+2), empty(X_SIZE+1)
-    u_extended = empty(X_SIZE+2)
+
+    # Explicit only parameters
+    u_prev_expl = exact(0)
+    u_extended_expl = empty(X_SIZE+2)
 
     for t in T_VALUES:
-        u_exact = exact(t)
         if t == 0:
-            amplot.add_frame(u_exact, u_prev)
+            amplot.add_frame(exact(t), u_prev, u_prev_expl)
             continue
 
         # Fill A matrix for given t
@@ -134,11 +146,10 @@ def solve_3_layer(equation_mode):
             main_diag[:] = (1+KSI)/TAU - A
             upper_diag[:], lower_diag[:] = -B, -C
         else:       # nonlinear
-            u_extended[1:-1] = u_prev
-            u_extended[0], u_extended[-1] = u0(t), u_extended[-2]
-            lambdas = lambda_nonlin(u_extended)
-            lambdas_new = (2 * lambdas[:-1] * lambdas[1:] + EPS) / (lambdas[:-1] + lambdas[1:] + EPS) + EPS
+            lambdas_new_expl, u_extended_expl = get_nonlinear_params(u_extended_expl, lambdas_new_expl, u_prev_expl, u0(t))
+            lambdas_new, u_extended = get_nonlinear_params(u_extended, lambdas_new, u_prev, u0(t))
 
+            # Implicit-only part
             main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1])/H**2
             upper_diag = - lambdas_new[1:-1] / H**2
             lower_diag = - lambdas_new[1:-1] / H**2
@@ -152,11 +163,23 @@ def solve_3_layer(equation_mode):
         implicit_b[0] += C*u0(t)   # left
         main_diag[-1] -= B         # right
 
-        # Solve Ax=b and copy
+        # Solve implicit
         copyto(u_prev_2, u_prev)
         u_prev = TDM_solve(main_diag, upper_diag, lower_diag, implicit_b)
 
-        amplot.add_frame(u_exact, u_prev)
+        # Solve explicit
+        if equation_mode == 'linear':
+            u_extended_expl[1:-1] = u_prev_expl
+            u_extended_expl[0], u_extended_expl[-1] = U0, u_extended_expl[-2]
+            u_prev_expl = TAU * ((1/TAU + A) * u_extended_expl[1:-1] +
+                                 B * (u_extended_expl[2:] + u_extended_expl[:-2]))
+        else:
+            u_prev_expl = TAU * ((1/TAU - (lambdas_new_expl[1:] + lambdas_new_expl[:-1])/H**2) * u_extended_expl[1:-1] +
+                                        lambdas_new_expl[1:] * u_extended_expl[2:] / H**2 +
+                                        lambdas_new_expl[:-1] * u_extended_expl[:-2] / H**2)
+
+        if (t / TAU) % SKIP == 0:
+            amplot.add_frame(exact(t), u_prev, u_prev_expl)
     amplot.finalize()
 
 def main():
