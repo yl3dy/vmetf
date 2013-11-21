@@ -2,6 +2,7 @@
 
 import sys
 from numpy import empty, linspace, array, copyto, zeros
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
 from scipy.special import erfc
@@ -25,7 +26,7 @@ SIGMA = 0.8
 CS = sqrt(U0**SIGMA * K / SIGMA)
 lambda_nonlin = lambda u: K * u**SIGMA
 ### 3-layer method parameters ###
-KSI = -0.5
+KSI = -0.5      # should be < 0 (lazy to correct coeffs in formulae)
 
 # very small number
 EPS = 1e-20
@@ -70,7 +71,7 @@ def exact_linear(t):
     if t > 0:
         return array([U0 * erfc(0.5*x / sqrt(NU*t)) for x in X_VALUES])
     else:
-        return array([0. for x in X_VALUES])
+        return zeros(X_SIZE)
 
 def exact_nonlinear(t):
     """Exact solution of nonlinear equation."""
@@ -126,14 +127,15 @@ def solve_3_layer(equation_mode):
 
     amplot = AnimatedPlot(('Exact solution', 'Implicit solver', 'Explicit solver'))
 
+    # Implicit parameters
     u_prev, u_prev_2 = exact(0), exact(0)  # initial conditions
     u_extended = empty(X_SIZE+2)
     implicit_b = empty(X_SIZE)
     main_diag = empty(X_SIZE)
     lower_diag, upper_diag = empty(X_SIZE-1), empty(X_SIZE-1)
 
-    # Explicit only parameters
-    u_prev_expl = exact(0)
+    # Explicit parameters
+    u_prev_expl = exact(0)   # initial conditions
     u_extended_expl = empty(X_SIZE+2)
 
     for t in T_VALUES:
@@ -169,8 +171,6 @@ def solve_3_layer(equation_mode):
 
         # Solve explicit
         if equation_mode == 'linear':
-            u_extended_expl[1:-1] = u_prev_expl
-            u_extended_expl[0], u_extended_expl[-1] = U0, u_extended_expl[-2]
             u_prev_expl = TAU * ((1/TAU + A) * u_extended_expl[1:-1] +
                                  B * (u_extended_expl[2:] + u_extended_expl[:-2]))
         else:
