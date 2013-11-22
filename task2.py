@@ -10,11 +10,11 @@ from math import sqrt, floor
 
 ### SIZES ###
 # spatial
-H = 0.05
+H = 0.025
 L = 1
 # time
-TAU = 0.001
-T = 0.8
+TAU = 0.0001
+T = 0.5
 ### Initial parameters ###
 U0 = 1.
 ### Equation parameters ###
@@ -40,10 +40,10 @@ class AnimatedPlot:
     """For animated result output using matplotlib.animate."""
     sequence = []
     fig = plt.figure()
-    INTERVAL = 120
+    INTERVAL = 200
     def __init__(self, legend=None):
         """Initialize plot (optionally with a legend)."""
-        plt.axis([0., 0.5, -0.01, 0.8])
+        plt.axis([0., 1.0, -0.01, 1.2])
         self.legend = legend
     def add_frame(self, *args):
         """Add a frame to animation."""
@@ -151,8 +151,8 @@ def solve_3_layer(equation_mode):
             main_diag[:] = (1+KSI)/TAU - A
             upper_diag[:], lower_diag[:] = -B, -C
         else:       # nonlinear
-            lambdas_new_expl, u_extended_expl = get_nonlinear_params(u_extended_expl, lambdas_new_expl, u_prev_expl, u0(t))
-            lambdas_new, u_extended = get_nonlinear_params(u_extended, lambdas_new, u_prev, u0(t))
+            lambdas_new_expl, u_extended_expl = get_lambdas(u_extended_expl, lambdas_new_expl, u_prev_expl, u0(t))
+            lambdas_new, u_extended = get_lambdas(u_extended, lambdas_new, u_prev, u0(t))
 
             # Implicit-only part
             main_diag = (1 + KSI)/TAU + (lambdas_new[1:] + lambdas_new[:-1])/H**2
