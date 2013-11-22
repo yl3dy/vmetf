@@ -101,7 +101,7 @@ def TDM_solve(main_diag, upper_diag, lower_diag, b):
 
     return solution
 
-def get_nonlinear_params(u_extended, lambdas_new, u_prev, u0):
+def get_lambdas(u_extended, lambdas_new, u_prev, u0):
     """Calculate \lambda_+, \lambda_- and u_extended."""
     u_extended[1:-1] = u_prev
     u_extended[0], u_extended[-1] = u0, u_extended[-2]
@@ -143,6 +143,9 @@ def solve_3_layer(equation_mode):
             amplot.add_frame(exact(t), u_prev, u_prev_expl)
             continue
 
+        # Auxiliary array for explicit method
+        u_extended_expl[1:-1] = u_prev_expl
+        u_extended_expl[0], u_extended_expl[-1] = u0(t), u_extended_expl[-2]
         # Fill A matrix for given t
         if equation_mode == 'linear':
             main_diag[:] = (1+KSI)/TAU - A
@@ -175,8 +178,8 @@ def solve_3_layer(equation_mode):
                                  B * (u_extended_expl[2:] + u_extended_expl[:-2]))
         else:
             u_prev_expl = TAU * ((1/TAU - (lambdas_new_expl[1:] + lambdas_new_expl[:-1])/H**2) * u_extended_expl[1:-1] +
-                                        lambdas_new_expl[1:] * u_extended_expl[2:] / H**2 +
-                                        lambdas_new_expl[:-1] * u_extended_expl[:-2] / H**2)
+                                 lambdas_new_expl[1:] * u_extended_expl[2:] / H**2 +
+                                 lambdas_new_expl[:-1] * u_extended_expl[:-2] / H**2)
 
         if (t / TAU) % SKIP == 0:
             amplot.add_frame(exact(t), u_prev, u_prev_expl)
