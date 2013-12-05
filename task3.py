@@ -28,7 +28,8 @@ T_2 = 2.5     # used in 2nd and 4th method (temp along y axis)
 T_1 = 2.5     # used in 1st and 4th method (temp along x axis)
 # Iterative parameters
 EPS = 1e-4
-TAU = 0.001
+TAU = 0.0001
+ITER_NUM = 100
 # Very small number for lambdas
 L_EPS = 1e-20
 
@@ -47,6 +48,8 @@ def set_initial_conditions(boundary_type):
     T_field[:, 0] = T_SOUTH
     T_field[0, :] = T_WEST
     T_field[-1, :] = T_EAST
+    if boundary_type == 1:
+        T_field[:BOX_1[0], :BOX_1[1]] = T_1
 
     # set raw lambdas
     lambdas_raw = ones([X_DENSITY, Y_DENSITY])*10
@@ -100,10 +103,10 @@ def solver(boundary_type):
     main_diag_y = main_diag_x.copy()
     upper_diag_y, lower_diag_y = upper_diag_x.copy(), lower_diag_x.copy()
 
-    for iteration in range(100):
+    for iteration in range(ITER_NUM):
         # step in X direction
         for k in range(1, Y_DENSITY-1):
-            #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU + \
+            #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k] + \
                         #(lambdas_y[:, k]/(y_grid[k] - y_grid[k+1])**2 * (T_field_prev[2:, k+1] - T_field_prev[1:-1, k])) - \
                         #(lambdas_y[:, k-1]/(y_grid[k-1] - y_grid[k])**2 * (T_field_prev[1:-1, k] - T_field_prev[:-2, k-1]))
             b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k]
@@ -120,7 +123,7 @@ def solver(boundary_type):
 
         # step in Y direction
         for i in range(1, X_DENSITY-1):
-            #b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU + \
+            #b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1] + \
                         #(lambdas_x[i, :]/(x_grid[i] - x_grid[i+1])**2 * (T_field_halfnext[i+1, 2:] - T_field_halfnext[i, 1:-1])) - \
                         #(lambdas_x[i-1, :]/(x_grid[i-1] - x_grid[i])**2 * (T_field_halfnext[i, 1:-1] - T_field_halfnext[i-1, :-2]))
             b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1]
@@ -140,10 +143,10 @@ def solver(boundary_type):
     #print(T_field_next)
     print('Min/max temperature: {}, {}'.format(np.min(T_field_next.ravel()),
                                                np.max(T_field_next.ravel())))
-    #pretty_plot(T_field_next)
+    pretty_plot(T_field_next)
 
 
 if __name__ == '__main__':
-    solver(4)
+    solver(1)
 
 # vim: set tw=0:
