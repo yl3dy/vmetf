@@ -1,18 +1,19 @@
 #!/usr/bin/python3
 
 from numpy import empty, linspace, ones
+import numpy as np
 import matplotlib.pyplot as plt
 
 # Size of main computation area
 L_X = 1
 L_Y = 1
-X_DENSITY = 10
-Y_DENSITY = 10
+X_DENSITY = 100
+Y_DENSITY = 100
 # Boundary conditions
-T_NORTH = 2
-T_SOUTH = 2
-T_EAST = 2
-T_WEST = 2
+T_NORTH = 2.0
+T_SOUTH = 2.0
+T_EAST = 2.0
+T_WEST = 2.0
 # Power of heat sources
 S_C = 5
 S_P = 10
@@ -44,6 +45,12 @@ def TDMA_solve(main_diag, upper_diag, lower_diag, b):
 
     return solution
 
+def set_lambdas_raw():
+    """Set thermal conductivity field."""
+    lambdas_raw = ones([X_DENSITY, Y_DENSITY]) * 1.0
+    lambdas_raw[:20, :20] = 1e20
+    return lambdas_raw
+
 def set_initial_conditions():
     """Set initial conditions for solver."""
     x_grid = linspace(0, L_X, X_DENSITY)
@@ -51,7 +58,7 @@ def set_initial_conditions():
     T_field = ones([X_DENSITY, Y_DENSITY])
 
     # calculate lambdas
-    lambdas_raw = ones([X_DENSITY, Y_DENSITY]) * 0.1
+    lambdas_raw = set_lambdas_raw()
     lambdas_x = empty([X_DENSITY - 1, Y_DENSITY - 2])
     lambdas_y = empty([X_DENSITY - 2, Y_DENSITY - 1])
     lambdas_x = ((2 * lambdas_raw[1:, 1:-1] * lambdas_raw[:-1, 1:-1] + L_EPS) /
@@ -73,7 +80,7 @@ def accuracy_acquired(T_next, T_prev):
 
 def pretty_plot(T_field):
     """Make a pretty heatmap plot."""
-    plt.imshow(T_field.T, origin='lower')
+    plt.imshow(T_field.T, origin='lower', interpolation='none')
     plt.show()
 
 def solver():
@@ -88,11 +95,15 @@ def solver():
     main_diag_y = main_diag_x.copy()
     upper_diag_y, lower_diag_y = upper_diag_x.copy(), lower_diag_x.copy()
 
-    for iteration in range(1000):
+    for iteration in range(100):
         # step in X direction
         for k in range(1, Y_DENSITY-1):
-            b_x = T_field_prev[:, k] * 2/TAU # + S
-            main_diag_x[0], main_diag_x[-1] = 2/TAU, 2/TAU
+            #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU + \
+                        #(lambdas_y[:, k]/(y_grid[k] - y_grid[k+1])**2 * (T_field_prev[2:, k+1] - T_field_prev[1:-1, k])) - \
+                        #(lambdas_y[:, k-1]/(y_grid[k-1] - y_grid[k])**2 * (T_field_prev[1:-1, k] - T_field_prev[:-2, k-1]))
+            b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU
+            b_x[0], b_x[-1] = T_field_prev[0, k], T_field_prev[-1, k]
+            main_diag_x[0], main_diag_x[-1] = 1, 1
             main_diag_x[1:-1] = 2 / TAU + \
                                 lambdas_x[:-1, k-1]/(x_grid[1:-1] - x_grid[:-2])**2 + \
                                 lambdas_x[1:, k-1]/(x_grid[2:] - x_grid[1:-1])**2
@@ -104,8 +115,12 @@ def solver():
 
         # step in Y direction
         for i in range(1, X_DENSITY-1):
-            b_y = T_field_halfnext[i, :] * 2/TAU # + S
-            main_diag_y[0], main_diag_y[-1] = 2/TAU, 2/TAU
+            #b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU + \
+                        #(lambdas_x[i, :]/(x_grid[i] - x_grid[i+1])**2 * (T_field_halfnext[i+1, 2:] - T_field_halfnext[i, 1:-1])) - \
+                        #(lambdas_x[i-1, :]/(x_grid[i-1] - x_grid[i])**2 * (T_field_halfnext[i, 1:-1] - T_field_halfnext[i-1, :-2]))
+            b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU
+            b_y[0], b_y[-1] = T_field_halfnext[i, 0], T_field_halfnext[i, -1]
+            main_diag_y[0], main_diag_y[-1] = 1, 1
             main_diag_y[1:-1] = 2 / TAU + \
                                 lambdas_y[i-1, :-1]/(y_grid[1:-1] - y_grid[:-2])**2 + \
                                 lambdas_y[i-1, 1:]/(y_grid[2:] - y_grid[1:-1])**2
@@ -118,6 +133,7 @@ def solver():
         T_field_prev = T_field_next.copy()
 
     print(T_field_next)
+    print('Min value: {}, max value: {}'.format(np.min(T_field_next.ravel()), np.max(T_field_next.ravel())))
     pretty_plot(T_field_next)
 
 
