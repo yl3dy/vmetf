@@ -66,6 +66,8 @@ def set_initial_conditions(boundary_type):
         lambdas_raw[:BOX_1[0], :BOX_1[1]] = 1e20
     elif boundary_type == 2:
         lambdas_raw[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = 1e15
+    elif boundary_type == 3:
+        lambdas_raw[:BOX_1[0], :BOX_1[1]] = 0
 
     # heat sources
     s_c = zeros([X_DENSITY, Y_DENSITY])
@@ -105,7 +107,7 @@ def solver(boundary_type):
     main_diag_y = main_diag_x.copy()
     upper_diag_y, lower_diag_y = upper_diag_x.copy(), lower_diag_x.copy()
 
-    for iteration in range(10):
+    for iteration in range(100):
         # step in X direction
         for k in range(1, Y_DENSITY-1):
             #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU + \
@@ -149,6 +151,6 @@ def solver(boundary_type):
 
 
 if __name__ == '__main__':
-    solver(2)
+    solver(3)
 
 # vim: set tw=0:
