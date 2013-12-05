@@ -17,7 +17,8 @@ T_WEST = 2.0
 # Additional boundary conditions
 BOX_SIZE_1 = [0.2, 0.2]     # box size for 1st type boundary
 BOX_COORDS_2 = [[0.3, 0.3], [0.7, 0.7]]
-T_2 = 2
+T_2 = 2.5     # used in 2nd and 4th method (temp along y axis)
+T_1 = 2.5     # used in 1st and 4th method (temp along x axis)
 # Iterative parameters
 EPS = 1e-4
 TAU = 0.001
@@ -61,12 +62,12 @@ def set_initial_conditions(boundary_type):
     T_field[-1, :] = T_EAST
 
     # set raw lambdas
-    lambdas_raw = ones([X_DENSITY, Y_DENSITY]) * 1.0
+    lambdas_raw = ones([X_DENSITY, Y_DENSITY])*10
     if boundary_type == 1:
         lambdas_raw[:BOX_1[0], :BOX_1[1]] = 1e20
     elif boundary_type == 2:
         lambdas_raw[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = 1e15
-    elif boundary_type == 3:
+    elif boundary_type in [3, 4]:
         lambdas_raw[:BOX_1[0], :BOX_1[1]] = 0
 
     # heat sources
@@ -75,6 +76,11 @@ def set_initial_conditions(boundary_type):
     if boundary_type == 2:
         s_c[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = 1e20 * T_2
         s_p[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = -1e20
+    elif boundary_type == 4:
+        s_p[BOX_1[0], :BOX_1[1]+1] = -1e20
+        s_p[:BOX_1[0]+1, BOX_1[1]] = -1e20
+        s_c[BOX_1[0], :BOX_1[1]+1] = 1e20 * T_1
+        s_c[:BOX_1[0]+1, BOX_1[1]] = 1e20 * T_2
 
     # calculate lambdas +/-
     lambdas_x = empty([X_DENSITY - 1, Y_DENSITY - 2])
@@ -107,7 +113,7 @@ def solver(boundary_type):
     main_diag_y = main_diag_x.copy()
     upper_diag_y, lower_diag_y = upper_diag_x.copy(), lower_diag_x.copy()
 
-    for iteration in range(10):
+    for iteration in range(100):
         # step in X direction
         for k in range(1, Y_DENSITY-1):
             #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU + \
@@ -147,10 +153,10 @@ def solver(boundary_type):
     print(T_field_next)
     print('Min/max temperature: {}, {}'.format(np.min(T_field_next.ravel()),
                                                np.max(T_field_next.ravel())))
-    pretty_plot(T_field_next)
+    #pretty_plot(T_field_next)
 
 
 if __name__ == '__main__':
-    solver(3)
+    solver(4)
 
 # vim: set tw=0:
