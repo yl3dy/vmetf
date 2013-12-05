@@ -1,3 +1,6 @@
 *.vim
 *.pyc
 task1-out/
+*.c
+*.so
+build/

@@ -1,5 +1,12 @@
 #!/usr/bin/python3
 
+# With Cython
+import pyximport; pyximport.install()
+from tdma import TDMA_solve
+
+# Without Cython
+#from tdma_simple import TDMA_solve
+
 from numpy import empty, linspace, ones, zeros
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,26 +36,6 @@ L_EPS = 1e-20
 BOX_1 = [BOX_SIZE_1[0]/L_X * X_DENSITY, BOX_SIZE_1[1]/L_Y * Y_DENSITY]
 BOX_2 = [[BOX_COORDS_2[0][0]/L_X*X_DENSITY, BOX_COORDS_2[0][1]/L_Y*Y_DENSITY],
          [BOX_COORDS_2[1][0]/L_X*X_DENSITY, BOX_COORDS_2[1][1]/L_Y*Y_DENSITY]]
-
-def TDMA_solve(main_diag, upper_diag, lower_diag, b):
-    """Tridiagonal linear system solver."""
-    n = len(main_diag)
-    c, d, solution = empty(n - 1), empty(n), empty(n)
-
-    # forward
-    c[0] = upper_diag[0] / main_diag[0]
-    d[0] = b[0] / main_diag[0]
-    for i in range(1, n):
-        if i < n - 1:
-            c[i] = upper_diag[i] / (main_diag[i] - c[i-1]*lower_diag[i-1])
-        d[i] = (b[i] - d[i-1]*lower_diag[i-1]) / (main_diag[i] - c[i-1]*lower_diag[i-1])
-
-    # backward substitution
-    solution[n-1] = d[n-1]
-    for i in reversed(range(n-1)):
-        solution[i] = d[i] - c[i]*solution[i+1]
-
-    return solution
 
 def set_initial_conditions(boundary_type):
     """Set initial conditions for solver."""
@@ -150,7 +137,7 @@ def solver(boundary_type):
 
         T_field_prev = T_field_next.copy()
 
-    print(T_field_next)
+    #print(T_field_next)
     print('Min/max temperature: {}, {}'.format(np.min(T_field_next.ravel()),
                                                np.max(T_field_next.ravel())))
     #pretty_plot(T_field_next)
