@@ -28,7 +28,7 @@ T_2 = 2.5     # used in 2nd and 4th method (temp along y axis)
 T_1 = 2.5     # used in 1st and 4th method (temp along x axis)
 # Iterative parameters
 EPS = 1e-4
-TAU = 0.0001
+TAU = 0.001
 ITER_NUM = 100
 # Very small number for lambdas
 L_EPS = 1e-20
@@ -52,7 +52,7 @@ def set_initial_conditions(boundary_type):
         T_field[:BOX_1[0], :BOX_1[1]] = T_1
 
     # set raw lambdas
-    lambdas_raw = ones([X_DENSITY, Y_DENSITY])*10
+    lambdas_raw = ones([X_DENSITY, Y_DENSITY])
     if boundary_type == 1:
         lambdas_raw[:BOX_1[0], :BOX_1[1]] = 1e20
     elif boundary_type == 2:
@@ -106,10 +106,10 @@ def solver(boundary_type):
     for iteration in range(ITER_NUM):
         # step in X direction
         for k in range(1, Y_DENSITY-1):
-            #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k] + \
-                        #(lambdas_y[:, k]/(y_grid[k] - y_grid[k+1])**2 * (T_field_prev[2:, k+1] - T_field_prev[1:-1, k])) - \
-                        #(lambdas_y[:, k-1]/(y_grid[k-1] - y_grid[k])**2 * (T_field_prev[1:-1, k] - T_field_prev[:-2, k-1]))
-            b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k]
+            b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k] + \
+                        (lambdas_y[:, k]/(y_grid[k] - y_grid[k+1])**2 * (T_field_prev[1:-1, k+1] - T_field_prev[1:-1, k])) - \
+                        (lambdas_y[:, k-1]/(y_grid[k-1] - y_grid[k])**2 * (T_field_prev[1:-1, k] - T_field_prev[1:-1, k-1]))
+            #b_x[1:-1] = T_field_prev[1:-1, k] * 2/TAU - s_c[1:-1, k]
             b_x[0], b_x[-1] = T_field_prev[0, k], T_field_prev[-1, k]
             main_diag_x[0], main_diag_x[-1] = 1, 1
             main_diag_x[1:-1] = 2 / TAU + s_p[1:-1, k] + \
@@ -123,10 +123,10 @@ def solver(boundary_type):
 
         # step in Y direction
         for i in range(1, X_DENSITY-1):
-            #b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1] + \
-                        #(lambdas_x[i, :]/(x_grid[i] - x_grid[i+1])**2 * (T_field_halfnext[i+1, 2:] - T_field_halfnext[i, 1:-1])) - \
-                        #(lambdas_x[i-1, :]/(x_grid[i-1] - x_grid[i])**2 * (T_field_halfnext[i, 1:-1] - T_field_halfnext[i-1, :-2]))
-            b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1]
+            b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1] + \
+                        (lambdas_x[i, :]/(x_grid[i] - x_grid[i+1])**2 * (T_field_halfnext[i+1, 1:-1] - T_field_halfnext[i, 1:-1])) - \
+                        (lambdas_x[i-1, :]/(x_grid[i-1] - x_grid[i])**2 * (T_field_halfnext[i, 1:-1] - T_field_halfnext[i-1, 1:-1]))
+            #b_y[1:-1] = T_field_halfnext[i, 1:-1] * 2/TAU - s_c[i, 1:-1]
             b_y[0], b_y[-1] = T_field_halfnext[i, 0], T_field_halfnext[i, -1]
             main_diag_y[0], main_diag_y[-1] = 1, 1
             main_diag_y[1:-1] = 2 / TAU + s_p[i, 1:-1] + \
