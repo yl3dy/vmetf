@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 # Size of main computation area
 L_X = 1
 L_Y = 1
-X_DENSITY = 100
-Y_DENSITY = 100
+X_DENSITY = 1000
+Y_DENSITY = 1000
 # Boundary conditions
 T_NORTH = 2.0
 T_SOUTH = 2.0
@@ -24,12 +24,12 @@ T_WEST = 2.0
 # Additional boundary conditions
 BOX_SIZE_1 = [0.2, 0.2]     # box size for 1st type boundary
 BOX_COORDS_2 = [[0.3, 0.3], [0.7, 0.7]]
-T_2 = 2.5     # used in 2nd and 4th method (temp along y axis)
+T_2 = 3.5     # used in 2nd and 4th method (temp along y axis)
 T_1 = 2.5     # used in 1st and 4th method (temp along x axis)
 # Iterative parameters
 EPS = 1e-4
 TAU = 0.001
-ITER_NUM = 100
+ITER_NUM = 800
 # Very small number for lambdas
 L_EPS = 1e-20
 
@@ -67,10 +67,10 @@ def set_initial_conditions(boundary_type):
         s_c[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = 1e20 * T_2
         s_p[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = -1e20
     elif boundary_type == 4:
-        s_p[BOX_1[0], :BOX_1[1]+1] = -1e20
-        s_p[:BOX_1[0]+1, BOX_1[1]] = -1e20
-        s_c[BOX_1[0], :BOX_1[1]+1] = 1e20 * T_1
-        s_c[:BOX_1[0]+1, BOX_1[1]] = 1e20 * T_2
+        s_p[BOX_1[0], :BOX_1[1]] = -1e20
+        s_p[:BOX_1[0], BOX_1[1]] = -1e20
+        s_c[BOX_1[0], :BOX_1[1]] = 1e20 * T_1
+        s_c[:BOX_1[0], BOX_1[1]] = 1e20 * T_2
 
     # calculate lambdas +/-
     lambdas_x = empty([X_DENSITY - 1, Y_DENSITY - 2])
@@ -84,7 +84,8 @@ def set_initial_conditions(boundary_type):
 
 def accuracy_acquired(T_next, T_prev):
     """Estimate difference between last 2 iterations."""
-    return True
+    return ((T_next.ravel().min() - T_prev.ravel().min()) / T_next.ravel().min(),
+            (T_next.ravel().max() - T_prev.ravel().max()) / T_next.ravel().max())
 
 def pretty_plot(T_field):
     """Make a pretty heatmap plot."""
@@ -100,8 +101,8 @@ def solver(boundary_type):
     # TD matrix diagonals
     main_diag_x = empty(X_DENSITY)
     upper_diag_x, lower_diag_x = empty(X_DENSITY-1), empty(X_DENSITY-1)
-    main_diag_y = main_diag_x.copy()
-    upper_diag_y, lower_diag_y = upper_diag_x.copy(), lower_diag_x.copy()
+    main_diag_y = empty(Y_DENSITY)
+    upper_diag_y, lower_diag_y = empty(Y_DENSITY-1), empty(Y_DENSITY-1)
 
     for iteration in range(ITER_NUM):
         # step in X direction
@@ -143,10 +144,11 @@ def solver(boundary_type):
     #print(T_field_next)
     print('Min/max temperature: {}, {}'.format(np.min(T_field_next.ravel()),
                                                np.max(T_field_next.ravel())))
+    print('Min/max deviation: {}, {}'.format(*accuracy_acquired(T_field_next, T_field_prev)))
     pretty_plot(T_field_next)
 
 
 if __name__ == '__main__':
-    solver(1)
+    solver(3)
 
 # vim: set tw=0:
