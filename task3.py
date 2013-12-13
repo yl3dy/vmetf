@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 # Size of main computation area
 L_X = 1
 L_Y = 1
-X_DENSITY = 1000
-Y_DENSITY = 1000
+X_DENSITY = 100
+Y_DENSITY = 100
 # Boundary conditions
 T_NORTH = 2.0
 T_SOUTH = 2.0
@@ -26,10 +26,11 @@ BOX_SIZE_1 = [0.2, 0.2]     # box size for 1st type boundary
 BOX_COORDS_2 = [[0.3, 0.3], [0.7, 0.7]]
 T_2 = 3.5     # used in 2nd and 4th method (temp along y axis)
 T_1 = 2.5     # used in 1st and 4th method (temp along x axis)
+Q_W = 10     # sort of thermal flux (actually, \frac{A}{\Delta v} coefficient required)
 # Iterative parameters
 EPS = 1e-4
 TAU = 0.001
-ITER_NUM = 800
+ITER_NUM = 200
 # Very small number for lambdas
 L_EPS = 1e-20
 
@@ -66,6 +67,9 @@ def set_initial_conditions(boundary_type):
     if boundary_type == 2:
         s_c[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = 1e20 * T_2
         s_p[BOX_2[0][0]:BOX_2[1][0], BOX_2[0][1]:BOX_2[1][1]] = -1e20
+    elif boundary_type == 3:
+        s_c[BOX_1[0], :BOX_1[1]] = -Q_W
+        s_c[:BOX_1[0], BOX_1[1]] = -Q_W
     elif boundary_type == 4:
         s_p[BOX_1[0], :BOX_1[1]] = -1e20
         s_p[:BOX_1[0], BOX_1[1]] = -1e20
@@ -90,6 +94,7 @@ def accuracy_acquired(T_next, T_prev):
 def pretty_plot(T_field):
     """Make a pretty heatmap plot."""
     plt.imshow(T_field.T, origin='lower', interpolation='none')
+    plt.colorbar()
     plt.show()
 
 def solver(boundary_type):
