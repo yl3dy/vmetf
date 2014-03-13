@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
 from math import floor
 import os
+try:
+    import cython
+    import pyximport; pyximport.install()
+    import task4_aux as aux
+except ImportError:
+    import task4_aux_simple as aux
 
 ### Physical parameters
 # Left
@@ -116,40 +122,6 @@ def harlow():
         e, e_next = e_next, e
         rho, rho_next = rho_next, rho
 
-def smoothing(rho, u, e):
-    """Smoothing for 2nd order methods."""
-    grid_size = len(rho)
-    rho_smooth = rho.copy()
-    u_smooth = u.copy()
-    e_smooth = e.copy()
-    def get_D_p(f, i):
-        return f[i+1] - f[i]
-    def get_D_m(f, i):
-        return f[i] - f[i-1]
-
-    for i in range(2, grid_size - 2):
-        # Here are values for rho
-        D_m = get_D_m(rho, i)
-        D_mm = rho[i-1] - rho[i-2]
-        D_p = get_D_p(rho, i)
-        D_pp = rho[i+2] - rho[i+1]
-
-        Q_rho = Q_u = Q_e = 0
-        if D_p*D_m <= 0 or D_p*D_pp <= 0:
-            Q_rho += D_p
-            Q_u += get_D_p(u, i)
-            Q_e += get_D_p(e, i)
-        if D_p*D_m <= 0 or D_m*D_mm <= 0:
-            Q_rho -= D_m
-            Q_u -= get_D_m(u, i)
-            Q_e -= get_D_m(e, i)
-
-        rho_smooth[i] += Q * Q_rho
-        u_smooth[i] += Q * Q_u
-        e_smooth[i] += Q * Q_e
-
-    return rho_smooth, u_smooth, e_smooth
-
 def lax_wendroff():
     """Lax-Wendroff method implementation."""
     get_f = lambda rho, u, e: np.vstack([rho, rho*u, rho*e]).T
@@ -172,7 +144,8 @@ def lax_wendroff():
         f_new[0] = f_new[1]
         f_new[-1] = f_new[-2]
 
-        rho, u, e = smoothing(*get_3(f_new))
+        rho, u, e = get_3(f_new)
+        rho, u, e = aux.smoothing(rho, u, e, Q)
         f_old = get_f(rho, u, e)
         F_old = get_F(rho, u, e)
         if i % SKIP == 0:
