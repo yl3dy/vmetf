@@ -24,45 +24,11 @@ NODE_NUM = 100    # including borders
 DX = abs(X_LIMITS[0] - X_LIMITS[1]) / (NODE_NUM - 1)
 X_VALUES = linspace(min(X_LIMITS), max(X_LIMITS), NODE_NUM)
 # Time
-TAU = 0.001
-T = 2.5
+TAU = 0.0001
+T = 0.5
 T_VALUES = linspace(0, T, floor(T / TAU + 1))
 # Other
-SKIP = 50
-
-
-class AnimatedPlot:
-    """For animated result output using matplotlib.animate."""
-    sequence = []
-    fig = plt.figure()
-    INTERVAL = 200
-    def __init__(self, x_axis=[0., 1.], y_axis=[0., 1.], legend=None):
-        """Initialize animated plot.
-
-        Parameters:
-
-        x_axis  :  list of min and max values along X axis. Default: [0, 1]
-        y_axis  :  list of min and max values along Y axis. Default: [0, 1]
-        legend  :  optional list with curve names for legend
-
-        """
-
-        plt.axis(x_axis + y_axis)
-        self.legend = legend
-    def add_frame(self, *args):
-        """Add a frame to animation."""
-        colors = ['b', 'r', 'g', 'm', 'c', 'k']
-        if len(args) > len(colors):
-            print('Too many arguments to AnimatedPlot.add_frame')
-        plot_args = sum([[X_VALUES, args[i], colors[i]]
-                         for i in range(len(args))], [])
-        if self.legend: plt.legend(self.legend)
-        self.sequence.append(plt.plot(*plot_args))
-    def finalize(self):
-        """Show animated plot."""
-        _ = ArtistAnimation(self.fig, self.sequence, interval=self.INTERVAL,
-                            blit=True)
-        plt.show()
+SKIP = 200
 
 def draw_picture(i, rho, u, e, P):
     plt.axis([-1, 10, 0, 5])
@@ -149,13 +115,45 @@ def harlow():
         e, e_next = e_next, e
         rho, rho_next = rho_next, rho
 
+def smoothing():
+    pass
+
+def lax_wendroff():
+    """Lax-Wendroff method implementation."""
+    get_f = lambda rho, u, e: np.vstack([rho, rho*u, rho*e]).T
+    get_F = lambda rho, u, e: np.vstack([rho*u, (rho*u)**2 / rho + P_state(rho, u, e),
+                                         u * (rho*e + P_state(rho, u, e))]).T
+    get_3 = lambda x: (x[:, 0], x[:, 1]/x[:, 0], x[:, 2]/x[:, 0])
+
+    rho, u, e = initial_conditions()
+    f_old, F_old = get_f(rho, u, e), get_F(rho, u, e)
+    f_temp, F_temp = empty([f_old.shape[0]-1, f_old.shape[1]]), empty([F_old.shape[0]-1, F_old.shape[1]])
+    f_new = empty_like(f_old)
+
+    for t in T_VALUES:
+        i = floor(t/TAU)
+        # Predictor
+        f_temp = 0.5*(f_old[1:] + f_old[:-1]) - TAU/DX * (F_old[1:] - F_old[:-1])
+        F_temp = get_F(*[intermediate_vals(param) for param in get_3(f_old)])
+        # Corrector
+        f_new[1:-1] = f_old[1:-1] - TAU/DX * (F_temp[1:] - F_temp[:-1])
+        f_new[0] = f_new[1]
+        f_new[-1] = f_new[-2]
+
+        rho, u, e = get_3(f_new)
+        f_old, f_new = f_new, f_old
+        F_old = get_F(rho, u, e)
+        if i % SKIP == 0:
+            draw_picture(i, rho, u, e, P_state(rho, u, e))
+
 
 
 def main():
-    harlow()
+    os.system('rm /tmp/vmetf/*')
+    #harlow()
+    lax_wendroff()
 
 if __name__ == '__main__':
-    os.system('rm /tmp/vmetf/*')
     main()
 
 # vim: set tw=100:
