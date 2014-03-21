@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
-from numpy import empty, linspace, empty_like
+from numpy import empty, linspace, empty_like, zeros
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import ArtistAnimation
-from math import floor
+from math import floor, sqrt
 import os
 try:
     import cython
@@ -15,27 +15,27 @@ except ImportError:
 
 ### Physical parameters
 # Left
-RHO_LEFT = 2
-U_LEFT = 2
-E_LEFT = 2
+RHO_LEFT = 1
+U_LEFT = 0
+E_LEFT = 1
 # Right
-RHO_RIGHT = 1
-U_RIGHT = 1
+RHO_RIGHT = 0.3
+U_RIGHT = 0
 E_RIGHT = 1
-GAMMA = 3.5
+GAMMA = 1.4
 ### Model parameters
 # Coordinates
-X_LIMITS = [-10., 10.]
-NODE_NUM = 100    # including borders
+X_LIMITS = [-1., 1.]
+NODE_NUM = 200    # including borders
 DX = abs(X_LIMITS[0] - X_LIMITS[1]) / (NODE_NUM - 1)
 X_VALUES = linspace(min(X_LIMITS), max(X_LIMITS), NODE_NUM)
 # Time
-TAU = 0.0001
-T = 1.5
+TAU = 0.001
+T = 0.5
 T_VALUES = linspace(0, T, floor(T / TAU + 1))
 # Other
-SKIP = 200
-Q = 0.2
+SKIP = 20
+Q = 0.04
 
 def draw_picture(i, rho, u, e, P):
     plt.axis([-1, 10, 0, 5])
@@ -43,6 +43,29 @@ def draw_picture(i, rho, u, e, P):
     plt.legend(['rho', 'u', 'e', 'P'])
     plt.savefig('/tmp/vmetf/{:0>5d}.png'.format(i))
     plt.clf()
+
+def draw(result_exact, result_harlow, result_lw):
+    if not len(result_lw) == len(result_harlow) == len(result_exact):
+        print(len(result_lw), len(result_harlow), len(result_exact))
+    for i in range(len(result_exact)):
+        # density
+        exact_cur = result_exact[i][0]
+        harlow_cur = result_harlow[i][0]
+        lw_cur = result_lw[i][0]
+        plt.axis([-1.2, 1.2, 0, 1.5])
+        plt.plot(X_VALUES, exact_cur, 'r', X_VALUES, harlow_cur, 'b', X_VALUES, lw_cur, 'g')
+        plt.legend(['Exact', 'Harlow', 'Lax-Wendroff'])
+        plt.savefig('/tmp/vmetf/density_{:0>5d}.png'.format(i))
+        plt.clf()
+        # pressure
+        exact_cur = result_exact[i][1]
+        harlow_cur = result_harlow[i][1]
+        lw_cur = result_lw[i][1]
+        plt.axis([-1.2, 1.2, 0, 0.6])
+        plt.plot(X_VALUES, exact_cur, 'r', X_VALUES, harlow_cur, 'b', X_VALUES, lw_cur, 'g')
+        plt.legend(['Exact', 'Harlow', 'Lax-Wendroff'])
+        plt.savefig('/tmp/vmetf/pressure_{:0>5d}.png'.format(i))
+        plt.clf()
 
 def P_state(rho, u, e):
     """State equation."""
@@ -73,6 +96,7 @@ def harlow():
     P_aver = empty(NODE_NUM-1)
     dM, D_minus, D_plus = empty(NODE_NUM-1), empty(NODE_NUM-1), empty(NODE_NUM-1)
 
+    result_list = []
     for t in T_VALUES:
         i = int(t/TAU)
 
@@ -116,11 +140,14 @@ def harlow():
         e_next = new_X(e_temp, e_next, rho, rho_next)
 
         if i % SKIP == 0:
-            draw_picture(i, rho, u, e, P)
+            result_list.append([rho.copy(), P.copy()])
+            #draw_picture(i, rho, u, e, P)
 
         u, u_next = u_next, u
         e, e_next = e_next, e
         rho, rho_next = rho_next, rho
+
+    return result_list
 
 def lax_wendroff():
     """Lax-Wendroff method implementation."""
@@ -134,6 +161,7 @@ def lax_wendroff():
     f_temp, F_temp = empty([f_old.shape[0]-1, f_old.shape[1]]), empty([F_old.shape[0]-1, F_old.shape[1]])
     f_new = empty_like(f_old)
 
+    result_list = []
     for t in T_VALUES:
         i = floor(t/TAU)
         # Predictor
@@ -149,14 +177,121 @@ def lax_wendroff():
         f_old = get_f(rho, u, e)
         F_old = get_F(rho, u, e)
         if i % SKIP == 0:
-            draw_picture(i, rho, u, e, P_state(rho, u, e))
+            result_list.append([rho, P_state(rho, u, e)])
+            #draw_picture(i, rho, u, e, P_state(rho, u, e))
 
+    return result_list
+
+def exact():
+    """Exact iterative solution."""
+    P1 = P_state(RHO_LEFT, U_LEFT, E_LEFT)
+    P2 = P_state(RHO_RIGHT, U_RIGHT, E_RIGHT)
+    P = 0.5 * (P1 + P2)
+
+    # Determine params in iterative process
+    for it in range(200):
+        if P >= P1:
+            a1 = sqrt(RHO_LEFT * (0.5*(GAMMA+1)*P + 0.5*(GAMMA+1)*P1))
+        else:
+            c1 = sqrt(GAMMA * P1 / RHO_LEFT)
+            a1 = (GAMMA - 1) * 0.5 * RHO_LEFT * c1 * (1 - P/P1) / \
+                 (GAMMA*(1 - (P/P1)**((GAMMA-1)*0.5/GAMMA)))
+
+        if P >= P2:
+            a2 = sqrt(RHO_RIGHT*( 0.5*(GAMMA+1)*P + 0.5*(GAMMA-1)*P2 ))
+        else:
+            c2 = sqrt(GAMMA * P2 / RHO_RIGHT)
+            a2 = (GAMMA - 1) * 0.5 * RHO_RIGHT * c2 * (1 - P/P2) / \
+                 (GAMMA*(1 - (P/P2)**((GAMMA-1)*0.5/GAMMA)))
+
+        z = P / (P1 + P2)
+        a = (GAMMA - 1) * (1 - z) / \
+            (3 * GAMMA * z**((GAMMA+1)*0.5/GAMMA) * (1 - z**((GAMMA-1)*0.5/GAMMA))) - 1
+        if a <= 0: a = 0
+        fi = (a2*P1 + a1*P2 + a1*a2*(U_LEFT - U_RIGHT)) / (a1 + a2)
+        P = (a*P + fi) / (1 + a)
+
+    U = (a1*U_LEFT + a2*U_RIGHT + a1*a2*(U_LEFT - U_RIGHT)) / (a1 + a2)
+    # Левая ударная волна
+    if P >= P1:
+        D1 = U_LEFT - a1 / RHO_LEFT
+        R1 = RHO_LEFT * a1 / (a1 - RHO_LEFT*(U_LEFT - U))
+    else:    # Левая волна разряжения
+        v1 = U_LEFT - c1
+        c11 = c1 + 0.5*(GAMMA - 1)*(U_LEFT - U)
+        R1 = GAMMA * P / c11**2
+        v11 = U - c11
+
+    if P >= P2:
+        D2 = U_RIGHT + a2 / RHO_RIGHT
+        R2 = RHO_RIGHT * a2 / (a2 + RHO_RIGHT*(U_RIGHT - U))
+    else:
+        v2 = U_RIGHT + c2
+        c22 = c2 - 0.5*(GAMMA-1)*(U_RIGHT - U)
+        R2 = GAMMA * P / c22**2
+        v22 = U + c22
+    ############################################
+
+    Rho, uuu, eee = initial_conditions()
+    P_arr = P_state(Rho, uuu, eee)
+    result_list = []
+    for t in T_VALUES:
+        ii = float(t / TAU)
+
+        if P1 > P:
+            # s - approximation for velocity
+            aaa = []
+            for s in range(1, 1001):
+                v = v11 + (s - 1)*(v1 - v11) / 1000.
+                c = (GAMMA-1)*(U_LEFT - v) / (GAMMA+1) + 2*c1 / (GAMMA+1)
+                i = round(1 + (t*v + 1) / DX)
+                P_arr[i] = P1 * (c/c1)**((2*GAMMA) / (GAMMA-1))
+                Rho[i] = RHO_LEFT * (c/c1)**(2/(GAMMA-1))
+                aaa.append(i)
+            print(aaa)
+        if P2 > P:
+            for s in range(1, 1001):
+                v = v2 + (s - 1) * (v22 - v2) / 1000.
+                c = - (GAMMA-1)*(U_RIGHT - v) / (GAMMA+1) + 2*c2 / (GAMMA+1)
+                i = round(1 + (v*t + 1) / DX)
+                P_arr[i] = P2 * (c / c2)**((2*GAMMA) / (GAMMA-1))
+                Rho[i] = RHO_RIGHT * (c/c2)**(2/(GAMMA-1))
+        if P2 < P:
+            i_min = round(1 + (D2*(i-1)*TAU + 1) / DX)
+            i_max = round(1 + (D2*i*TAU + 1) / DX)
+            P_arr[i_min:i_max+1] = P
+            Rho[i_min:i_max+1] = R2
+        if P1 < P:
+            i_max = round(1 + (D1*i*TAU + 1) / DX)
+            i_min = round(1 + (D1*(i-1)*TAU + 1) / DX)
+            P_arr[i_min:i_max+1] = P
+            Rho[i_min:i_max+1] = R1
+        if U > 0:
+            i_min = round(1 + (U*(i-1)*TAU + 1) / DX)
+            i_max = round(1 + (U*i*TAU + 1) / DX)
+            P_arr[i_min:i_max+1] = P
+            Rho[i_min:i_max+1] = R1
+        if U < 0:
+            i_min = round(1 + (U*i*TAU + 1) / DX)
+            i_max = round(1 + (U*(i-1)*TAU + 1) / DX)
+            P_arr[i_min:i_max+1] = P
+            Rho[i_min:i_max+1] = R2
+
+        if ii % SKIP == 0:
+            result_list.append([Rho.copy(), P_arr.copy()])
+    return result_list
 
 
 def main():
     os.system('rm /tmp/vmetf/*')
-    #harlow()
-    lax_wendroff()
+    print('Calculating exact')
+    result_exact = exact()
+    print('Calculating Harlow')
+    result_harlow = harlow()
+    print('Calculating Lax-Wendroff')
+    result_lw = lax_wendroff()
+    print('Drawing results')
+    draw(result_exact, result_harlow, result_lw)
 
 if __name__ == '__main__':
     main()
