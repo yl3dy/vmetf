@@ -191,7 +191,7 @@ def exact():
     # Determine params in iterative process
     for it in range(200):
         if P >= P1:
-            a1 = sqrt(RHO_LEFT * (0.5*(GAMMA+1)*P + 0.5*(GAMMA+1)*P1))
+            a1 = sqrt(RHO_LEFT * (0.5*(GAMMA+1)*P + 0.5*(GAMMA-1)*P1))
         else:
             c1 = sqrt(GAMMA * P1 / RHO_LEFT)
             a1 = (GAMMA - 1) * 0.5 * RHO_LEFT * c1 * (1 - P/P1) / \
@@ -254,23 +254,23 @@ def exact():
                 P_arr[i] = P2 * (c / c2)**((2*GAMMA) / (GAMMA-1))
                 Rho[i] = RHO_RIGHT * (c/c2)**(2/(GAMMA-1))
         if P2 < P:
-            i_min = round(1 + (D2*(i-1)*TAU + 1) / DX)
-            i_max = round(1 + (D2*i*TAU + 1) / DX)
+            i_min = round(1 + (D2*(ii-1)*TAU + 1) / DX)
+            i_max = round(1 + (D2*ii*TAU + 1) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R2
         if P1 < P:
-            i_max = round(1 + (D1*i*TAU + 1) / DX)
-            i_min = round(1 + (D1*(i-1)*TAU + 1) / DX)
+            i_max = round(1 + (D1*ii*TAU + 1) / DX)
+            i_min = round(1 + (D1*(ii-1)*TAU + 1) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R1
         if U > 0:
-            i_min = round(1 + (U*(i-1)*TAU + 1) / DX)
-            i_max = round(1 + (U*i*TAU + 1) / DX)
+            i_min = round(1 + (U*(ii-1)*TAU + 1) / DX)
+            i_max = round(1 + (U*ii*TAU + 1) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R1
         if U < 0:
-            i_min = round(1 + (U*i*TAU + 1) / DX)
-            i_max = round(1 + (U*(i-1)*TAU + 1) / DX)
+            i_min = round(1 + (U*ii*TAU + 1) / DX)
+            i_max = round(1 + (U*(ii-1)*TAU + 1) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R2
 
