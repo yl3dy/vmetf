@@ -211,7 +211,7 @@ def exact():
         fi = (a2*P1 + a1*P2 + a1*a2*(U_LEFT - U_RIGHT)) / (a1 + a2)
         P = (a*P + fi) / (1 + a)
 
-    U = (a1*U_LEFT + a2*U_RIGHT + a1*a2*(U_LEFT - U_RIGHT)) / (a1 + a2)
+    U = (a1*U_LEFT + a2*U_RIGHT + P1 - P2) / (a1 + a2)
     # Левая ударная волна
     if P >= P1:
         D1 = U_LEFT - a1 / RHO_LEFT
@@ -240,15 +240,12 @@ def exact():
 
         if P1 > P:
             # s - approximation for velocity
-            aaa = []
             for s in range(1, 1001):
                 v = v11 + (s - 1)*(v1 - v11) / 1000.
                 c = (GAMMA-1)*(U_LEFT - v) / (GAMMA+1) + 2*c1 / (GAMMA+1)
                 i = round(1 + (t*v + 1) / DX)
                 P_arr[i] = P1 * (c/c1)**((2*GAMMA) / (GAMMA-1))
                 Rho[i] = RHO_LEFT * (c/c1)**(2/(GAMMA-1))
-                aaa.append(i)
-            print(aaa)
         if P2 > P:
             for s in range(1, 1001):
                 v = v2 + (s - 1) * (v22 - v2) / 1000.
