@@ -25,16 +25,16 @@ E_RIGHT = 1
 GAMMA = 1.4
 ### Model parameters
 # Coordinates
-X_LIMITS = [-1., 1.]
-NODE_NUM = 200    # including borders
+X_LIMITS = [-3., 3.]
+NODE_NUM = 400    # including borders
 DX = abs(X_LIMITS[0] - X_LIMITS[1]) / (NODE_NUM - 1)
 X_VALUES = linspace(min(X_LIMITS), max(X_LIMITS), NODE_NUM)
 # Time
 TAU = 0.001
-T = 0.5
+T = 4.0
 T_VALUES = linspace(0, T, floor(T / TAU + 1))
 # Other
-SKIP = 20
+SKIP = 100
 Q = 0.04
 
 def draw_picture(i, rho, u, e, P):
@@ -52,18 +52,20 @@ def draw(result_exact, result_harlow, result_lw):
         exact_cur = result_exact[i][0]
         harlow_cur = result_harlow[i][0]
         lw_cur = result_lw[i][0]
-        plt.axis([-1.2, 1.2, 0, 1.5])
+        plt.axis([-3.1, 3.1, 0, 1.5])
         plt.plot(X_VALUES, exact_cur, 'r', X_VALUES, harlow_cur, 'b', X_VALUES, lw_cur, 'g')
         plt.legend(['Exact', 'Harlow', 'Lax-Wendroff'])
+        plt.title('Density')
         plt.savefig('/tmp/vmetf/density_{:0>5d}.png'.format(i))
         plt.clf()
         # pressure
         exact_cur = result_exact[i][1]
         harlow_cur = result_harlow[i][1]
         lw_cur = result_lw[i][1]
-        plt.axis([-1.2, 1.2, 0, 0.6])
+        plt.axis([-3.1, 3.1, 0, 0.6])
         plt.plot(X_VALUES, exact_cur, 'r', X_VALUES, harlow_cur, 'b', X_VALUES, lw_cur, 'g')
         plt.legend(['Exact', 'Harlow', 'Lax-Wendroff'])
+        plt.title('Pressure')
         plt.savefig('/tmp/vmetf/pressure_{:0>5d}.png'.format(i))
         plt.clf()
 
@@ -98,7 +100,7 @@ def harlow():
 
     result_list = []
     for t in T_VALUES:
-        i = int(t/TAU)
+        i = round(t/TAU)
 
         # Euler step
         P = P_state(rho, u, e)
@@ -163,7 +165,7 @@ def lax_wendroff():
 
     result_list = []
     for t in T_VALUES:
-        i = floor(t/TAU)
+        i = round(t/TAU)
         # Predictor
         f_temp = 0.5*(f_old[1:] + f_old[:-1]) - TAU/DX * (F_old[1:] - F_old[:-1])
         F_temp = get_F(*[intermediate_vals(param) for param in get_3(f_old)])
@@ -189,7 +191,7 @@ def exact():
     P = 0.5 * (P1 + P2)
 
     # Determine params in iterative process
-    for it in range(200):
+    for it in range(20):
         if P >= P1:
             a1 = sqrt(RHO_LEFT * (0.5*(GAMMA+1)*P + 0.5*(GAMMA-1)*P1))
         else:
@@ -216,16 +218,17 @@ def exact():
     if P >= P1:
         D1 = U_LEFT - a1 / RHO_LEFT
         R1 = RHO_LEFT * a1 / (a1 - RHO_LEFT*(U_LEFT - U))
-    else:    # Левая волна разряжения
+    else:    # Левая волна разрежения
         v1 = U_LEFT - c1
         c11 = c1 + 0.5*(GAMMA - 1)*(U_LEFT - U)
         R1 = GAMMA * P / c11**2
         v11 = U - c11
 
+    # Правая ударная волна
     if P >= P2:
         D2 = U_RIGHT + a2 / RHO_RIGHT
         R2 = RHO_RIGHT * a2 / (a2 + RHO_RIGHT*(U_RIGHT - U))
-    else:
+    else:       # Правая волна разрежения
         v2 = U_RIGHT + c2
         c22 = c2 - 0.5*(GAMMA-1)*(U_RIGHT - U)
         R2 = GAMMA * P / c22**2
@@ -235,47 +238,48 @@ def exact():
     Rho, uuu, eee = initial_conditions()
     P_arr = P_state(Rho, uuu, eee)
     result_list = []
-    for t in T_VALUES:
-        ii = float(t / TAU)
+    for ii in range(len(T_VALUES)):
+        t = ii*TAU
 
         if P1 > P:
             # s - approximation for velocity
             for s in range(1, 1001):
                 v = v11 + (s - 1)*(v1 - v11) / 1000.
                 c = (GAMMA-1)*(U_LEFT - v) / (GAMMA+1) + 2*c1 / (GAMMA+1)
-                i = round(1 + (t*v + 1) / DX)
+                i = round((t*v - X_LIMITS[0]) / DX)
                 P_arr[i] = P1 * (c/c1)**((2*GAMMA) / (GAMMA-1))
                 Rho[i] = RHO_LEFT * (c/c1)**(2/(GAMMA-1))
         if P2 > P:
             for s in range(1, 1001):
                 v = v2 + (s - 1) * (v22 - v2) / 1000.
                 c = - (GAMMA-1)*(U_RIGHT - v) / (GAMMA+1) + 2*c2 / (GAMMA+1)
-                i = round(1 + (v*t + 1) / DX)
+                i = round((v*t - X_LIMITS[0]) / DX)
                 P_arr[i] = P2 * (c / c2)**((2*GAMMA) / (GAMMA-1))
                 Rho[i] = RHO_RIGHT * (c/c2)**(2/(GAMMA-1))
         if P2 < P:
-            i_min = round(1 + (D2*(ii-1)*TAU + 1) / DX)
-            i_max = round(1 + (D2*ii*TAU + 1) / DX)
+            i_min = round((D2*(ii-1)*TAU - X_LIMITS[0]) / DX)
+            i_max = round((D2*ii*TAU - X_LIMITS[0]) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R2
         if P1 < P:
-            i_max = round(1 + (D1*ii*TAU + 1) / DX)
-            i_min = round(1 + (D1*(ii-1)*TAU + 1) / DX)
+            i_min = round((D1*ii*TAU - X_LIMITS[0]) / DX)
+            i_max = round((D1*(ii-1)*TAU - X_LIMITS[0]) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R1
         if U > 0:
-            i_min = round(1 + (U*(ii-1)*TAU + 1) / DX)
-            i_max = round(1 + (U*ii*TAU + 1) / DX)
+            i_min = round((U*(ii-1)*TAU - X_LIMITS[0]) / DX)
+            i_max = round((U*ii*TAU - X_LIMITS[0]) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R1
         if U < 0:
-            i_min = round(1 + (U*ii*TAU + 1) / DX)
-            i_max = round(1 + (U*(ii-1)*TAU + 1) / DX)
+            i_min = round((U*ii*TAU - X_LIMITS[0]) / DX)
+            i_max = round((U*(ii-1)*TAU -X_LIMITS[0]) / DX)
             P_arr[i_min:i_max+1] = P
             Rho[i_min:i_max+1] = R2
 
         if ii % SKIP == 0:
             result_list.append([Rho.copy(), P_arr.copy()])
+
     return result_list
 
 
