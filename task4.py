@@ -168,7 +168,7 @@ def lax_wendroff():
         i = round(t/TAU)
         # Predictor
         f_temp = 0.5*(f_old[1:] + f_old[:-1]) - TAU/DX * (F_old[1:] - F_old[:-1])
-        F_temp = get_F(*[intermediate_vals(param) for param in get_3(f_old)])
+        F_temp = get_F(*get_3(f_temp))
         # Corrector
         f_new[1:-1] = f_old[1:-1] - TAU/DX * (F_temp[1:] - F_temp[:-1])
         f_new[0] = f_new[1]
