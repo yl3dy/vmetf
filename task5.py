@@ -1,33 +1,60 @@
 #!/usr/bin/python3
 
-from numpy import linspace, float64, copy, ones, empty
+from numpy import linspace, float64, copy, ones, empty, zeros
 import matplotlib.pyplot as plt
 from tdma import TDMA_solve
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumtrapz, odeint
+from math import sqrt
 
 # Physical parameters
-NU = 1
+NU = 0.1
 # Modelic
 # X
 X_NODES = 100
 X_MIN = 0
-X_MAX = 100
+X_MAX = 1
 X_VALS, DX = linspace(X_MIN, X_MAX, num=X_NODES, retstep=True)
 # Y
-Y_NODES = 100
+Y_NODES = 1000
 Y_MIN = 0
 Y_MAX = 1
 Y_VALS, DY = linspace(Y_MIN, Y_MAX, num=Y_NODES, retstep=True)
 THETA = 0.5
-ITER_NUM = 5    # for iterative method
+ITER_NUM = 3    # for iterative method
 # Initial conditions
 P0 = 0
-U0 = 1
 V0 = 0
+U0 = 1
+
+# Integration parameters
+EPS = 0.01
+DPHI = 0.001
+Z_MAX = 10
+Z_GRID_SIZE = 1000
 
 
-def exact():
-    pass
+def exact(x_pos):
+    # x_pos should be an integer index
+    def func(y, t):
+        phi, w, ww = y
+        return [w, ww, -0.5*phi*ww]
+    def get_y(x, z):
+        return y * sqrt(U0 / (NU * x))
+
+    phi0 = zeros(3)
+    z_range = linspace(0, Z_MAX, num=Z_GRID_SIZE)
+    ww = 0
+    while abs(ww - 1) >= EPS:
+        phi0[2] += DPHI
+        solution = odeint(func, phi0, z_range)
+        ww = solution[-1, 1]
+
+    # Reconstruct solution
+    x = X_VALS[x_pos]
+    y_range = z_range * sqrt(NU * x / U0)
+    u = U0 * solution[:, 1]
+
+    return y_range, u
 
 def integrate_v(u_next, u_prev, i):
     dudx = - (u_next[i, :] - u_prev[i, :]) / DX
@@ -35,7 +62,8 @@ def integrate_v(u_next, u_prev, i):
     return v
 
 
-def inexact():
+def inexact(x_pos):
+    # x_pos - same as in exact()
     u_prev = ones([X_NODES, Y_NODES], dtype=float64) * U0
     v_prev = ones([X_NODES, Y_NODES], dtype=float64) * V0
     u_next, v_next = copy(u_prev), copy(v_prev)
@@ -78,16 +106,16 @@ def inexact():
             u_prev = copy(u_next)
             v_prev = copy(v_next)
 
-    return u_next[50, :]
+    return u_next[x_pos, :]
 
 
 def main():
-    #P_exact = exact()
-    u_inexact = inexact()
-    print(u_inexact[0], u_inexact[-1])
-    #plt.plot(Y_VALS, P_exact, Y_VALS, P_inexact)
-    plt.plot(Y_VALS, u_inexact)
-    #plt.legend(('Exact', 'Approximate'))
+    print('Exact')
+    y_exact, u_exact = exact(50)
+    print('Inexact')
+    u_inexact = inexact(50)
+    plt.plot(u_exact, y_exact, u_inexact, Y_VALS)
+    plt.legend(('Exact', 'Approximate'))
     plt.show()
 
 if __name__ == '__main__':
