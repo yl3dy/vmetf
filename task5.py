@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from numpy import linspace, float64, copy, ones, empty, zeros
+from numpy import linspace, float64, copy, ones, empty, zeros, empty_like
 import matplotlib.pyplot as plt
 from tdma import TDMA_solve
 from scipy.integrate import cumtrapz, odeint
@@ -20,14 +20,14 @@ Y_MIN = 0
 Y_MAX = 1
 Y_VALS, DY = linspace(Y_MIN, Y_MAX, num=Y_NODES, retstep=True)
 THETA = 0.5
-ITER_NUM = 3    # for iterative method
+ITER_NUM = 5    # for iterative method
 # Initial conditions
 P0 = 0
 V0 = 0
 U0 = 1
 
 # Integration parameters
-EPS = 0.01
+EPS = 0.005
 DPHI = 0.001
 Z_MAX = 10
 Z_GRID_SIZE = 1000
@@ -61,7 +61,6 @@ def integrate_v(u_next, u_prev, i):
     v = cumtrapz(dudx, Y_VALS, initial=0)
     return v
 
-
 def inexact(x_pos):
     # x_pos - same as in exact()
     u_prev = ones([X_NODES, Y_NODES], dtype=float64) * U0
@@ -75,11 +74,11 @@ def inexact(x_pos):
     free_coefs = empty(Y_NODES)
 
     for i in range(1, len(X_VALS) - 1):
-        # Reset u_* and v_*
-        u_star = u_prev[i, :]
-        v_star = v_prev[i, :]
-
         for _ in range(ITER_NUM):
+            u_star = THETA*u_next[i, :] + (1-THETA)*u_prev[i, :]
+            v_star = integrate_v(u_next, u_prev, i)
+            print('iteration: {}, v_*: {} {}'.format(_, v_star.min(), v_star.max()))
+
             # Fill the matrix
             main_diag[1:-1] = u_star[1:-1] / DX + 2 * THETA * NU / DY**2    # from u^{n+1}_i
             main_diag[0], main_diag[-1] = 1, 1
@@ -99,21 +98,18 @@ def inexact(x_pos):
             free_coefs[-1] = U0
 
             u_next[i, :] = TDMA_solve(main_diag, upper_diag, lower_diag, free_coefs)
-            v_next[i, :] = integrate_v(u_next, u_prev, i)
-            u_star = THETA*u_next[i, :] + (1-THETA)*u_prev[i, :]
-            v_star = THETA*v_next[i, :] + (1-THETA)*v_prev[i, :]
+        u_prev = copy(u_next)
 
-            u_prev = copy(u_next)
-            v_prev = copy(v_next)
-
-    return u_next[x_pos, :]
+    return u_next[x_pos, :], v_star
 
 
 def main():
     print('Exact')
-    y_exact, u_exact = exact(50)
+    y_exact, u_exact = exact(5)
     print('Inexact')
-    u_inexact = inexact(50)
+    u_inexact, v_inexact = inexact(5)
+    plt.plot(v_inexact, Y_VALS)
+    plt.show()
     plt.plot(u_exact, y_exact, u_inexact, Y_VALS)
     plt.legend(('Exact', 'Approximate'))
     plt.show()
